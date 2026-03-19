@@ -1,5 +1,11 @@
 import logging
+import sys
 import time
+from pathlib import Path
+
+# Ensure project root is on sys.path so `from src.x import y` works
+# when running as `python src/agent.py`
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 from livekit import rtc
