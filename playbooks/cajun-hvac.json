@@ -37,6 +37,8 @@
         { "type": "action", "fn": "check_service_area" },
         { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask what service they need or what issue they're experiencing." },
         { "type": "collect", "field": "appointment_time", "mode": "guided", "prompt": "Ask when they'd like to schedule the service appointment." },
+        { "type": "collect", "field": "booking_confirmed", "mode": "guided", "prompt": "Summarize the appointment back to the caller — their name, the appointment time, the service address, and the issue — and ask if everything is correct." },
+        { "type": "action", "fn": "check_booking_confirmed" },
         { "type": "action", "fn": "confirm_booking" }
       ]
     },

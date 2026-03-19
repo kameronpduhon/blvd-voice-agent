@@ -54,6 +54,10 @@ class StepExecutor:
             return "Current step is not a collect step."
 
         if step["field"] != field_name:
+            # Allow overwriting a previously collected field without advancing
+            if field_name in self.collected:
+                self.collected[field_name] = value
+                return f"Updated {field_name}. Now continue with {step['field']}."
             return f"Expected field '{step['field']}', got '{field_name}'. Please provide {step['field']}."
 
         if value.strip().lower() in PLACEHOLDER_PATTERNS:
