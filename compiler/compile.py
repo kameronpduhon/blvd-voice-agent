@@ -1,6 +1,10 @@
 import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
+
+# Ensure project root is on sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.actions import ACTION_REGISTRY
 from src.utils import format_hours
@@ -111,6 +115,7 @@ You are interacting with the caller via voice. Apply these rules:
 You have two tools: set_intent and update_field.
 - After the greeting, identify the caller's intent and call set_intent ONCE. NEVER call set_intent again.
 - NEVER call update_field with placeholder values like [Name], TBD, N/A, or unknown. Only use real values the caller provides.
+- When calling update_field, use the EXACT field name the tool prompt tells you to collect. The field names are: fee_approved, name, phone, address, issue_description, appointment_time. DO NOT invent your own field names like "full_name" or "phone_number".
 - When a tool returns a prompt, speak it naturally to the caller.
 - When a tool returns "[delivered]", the text has already been spoken. Acknowledge naturally and wait for the caller to respond.
 - When a tool returns "[call_ended]", the call is ending. Do NOT speak. Do NOT call any tools.

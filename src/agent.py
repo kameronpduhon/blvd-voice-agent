@@ -55,23 +55,25 @@ class Assistant(Agent):
         result = await self.executor.set_intent(intent, self.session)
         if result == "[call_ended]":
             await context.wait_for_playout()
-            await self.session.shutdown()
+            self.session.shutdown()
         return result
 
     @function_tool()
     async def update_field(
         self, context: RunContext, field_name: str, value: str
     ) -> str:
-        """Record information the caller provided.
+        """Record information the caller provided. Use the EXACT field name
+        from the current step prompt. Common fields: fee_approved, name, phone,
+        address, issue_description, appointment_time.
 
         Args:
-            field_name: The field being collected (must match the current step)
+            field_name: The exact field name for the current step (e.g. "name", "phone", "address")
             value: The caller's actual response. NEVER use placeholders.
         """
         result = await self.executor.update_field(field_name, value, self.session)
         if result == "[call_ended]":
             await context.wait_for_playout()
-            await self.session.shutdown()
+            self.session.shutdown()
         return result
 
 
