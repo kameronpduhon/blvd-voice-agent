@@ -20,6 +20,10 @@ actions.ACTION_REGISTRY["check_fee_approved"] = _test_check_fee_approved
 async def _test_check_emergency_confirmed(executor, session):
     confirmed = executor.collected.get("emergency_confirmed", "").lower()
     if confirmed in ("no", "n", "nope", "not yet", "hold on", "wait"):
+        for i, step in enumerate(executor.current_steps):
+            if step.get("field") == "emergency_confirmed":
+                executor.current_step_index = i
+                return "The caller wants to correct something. Ask what they'd like to change."
         return "The caller wants to correct something. Ask what they'd like to change."
     return await executor.advance(session)
 
@@ -480,8 +484,8 @@ async def test_emergency_full_flow():
 
 
 @pytest.mark.asyncio
-async def test_emergency_confirmed_no_returns_correction_guidance():
-    """When caller says no at confirmation, check_emergency_confirmed returns a guidance message."""
+async def test_emergency_confirmed_no_allows_correction():
+    """When caller says no at confirmation, they can correct a field via overwrite."""
     executor = StepExecutor(PLAYBOOK_EMERGENCY)
     session = make_mock_session()
 
@@ -490,17 +494,18 @@ async def test_emergency_confirmed_no_returns_correction_guidance():
     await executor.update_field("phone", "337-232-2341", session)
     await executor.update_field("address", "456 Cypress St 70502", session)
 
-    # Saying "no" triggers the action stub which returns a guidance string
     result = await executor.update_field("emergency_confirmed", "no", session)
     assert "change" in result.lower()
 
-    # Executor is now sitting on the action step — overwriting a collected field
-    # via update_field is not possible at this point (current step is action, not collect).
-    # The collected data is still intact.
-    assert executor.collected["name"] == "Eric Tails"
-    assert executor.collected["phone"] == "337-232-2341"
-    assert executor.collected["address"] == "456 Cypress St 70502"
-    assert executor.collected["emergency_confirmed"] == "no"
+    # Overwrite a previously collected field — step stays on emergency_confirmed
+    result = await executor.update_field("phone", "337-999-8888", session)
+    assert executor.collected["phone"] == "337-999-8888"
+    assert "emergency_confirmed" in result
+
+    # Re-confirm
+    result = await executor.update_field("emergency_confirmed", "yes", session)
+    assert "[call_ended]" in result
+    assert executor.outcome == "dispatched"
 
 
 @pytest.mark.asyncio
