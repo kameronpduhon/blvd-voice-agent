@@ -86,6 +86,7 @@ def build_system_prompt(playbook: dict) -> str:
     fees = playbook["fees"]
     areas = playbook["service_areas"]
     intents = playbook["intents"]
+    emergency_qualifiers = playbook.get("emergency_qualifiers", [])
 
     intent_lines = []
     for k, v in intents.items():
@@ -102,6 +103,15 @@ def build_system_prompt(playbook: dict) -> str:
     if fee.get("waived_with_work"):
         fee_str += " (waived if caller proceeds with repair)"
 
+    emergency_section = ""
+    if emergency_qualifiers:
+        qualifiers_str = ", ".join(emergency_qualifiers)
+        emergency_section = f"""
+# Emergency routing
+If the caller describes any of these situations, use set_intent("emergency"): {qualifiers_str}.
+For non-urgent service needs, use set_intent("routine_service") instead.
+"""
+
     return f"""You are a virtual receptionist for {company["name"]} in {company.get("address", "")}.
 
 # Output rules
@@ -116,7 +126,7 @@ You are interacting with the caller via voice. Apply these rules:
 You have two tools: set_intent and update_field.
 - After the greeting, identify the caller's intent and call set_intent ONCE. NEVER call set_intent again.
 - NEVER call update_field with placeholder values like [Name], TBD, N/A, or unknown. Only use real values the caller provides.
-- When calling update_field, use the EXACT field name the tool prompt tells you to collect. The field names are: fee_approved, name, phone, address, issue_description, appointment_time, booking_confirmed. DO NOT invent your own field names like "full_name" or "phone_number".
+- When calling update_field, use the EXACT field name the tool prompt tells you to collect. The field names are: fee_approved, name, phone, address, issue_description, appointment_time, booking_confirmed, cancellation_reason, preferred_time, emergency_confirmed. DO NOT invent your own field names like "full_name" or "phone_number".
 - When calling update_field, ALWAYS convert spoken numbers to digits. Phone numbers: "three three seven two three two twenty three forty one" → "337-232-2341". Addresses: "four five six Cypress Street seven zero five zero two" → "456 Cypress Street, 70502". NEVER store numbers as words.
 - When collecting a name, wait for the caller to finish. If they are spelling letter by letter, wait until they confirm the full name before calling update_field. If the caller provides a first name only, ask for the last name before recording.
 - When a tool returns a prompt, speak it naturally to the caller.
@@ -126,7 +136,7 @@ You have two tools: set_intent and update_field.
 # Available intents
 {chr(10).join(intent_lines)}
 If the caller's need does not match any intent, use set_intent("_fallback") to take a message so someone can call them back.
-
+{emergency_section}
 # Company info
 - Company: {company["name"]}
 - Phone: {company["phone"]}
@@ -137,6 +147,7 @@ If the caller's need does not match any intent, use set_intent("_fallback") to t
 # Conversation rules
 - If the caller declines a suggested appointment time, ask what time works for them instead. Record their preferred time with update_field.
 - If the caller wants to change a previously collected detail during confirmation, record "no" for booking_confirmed. Do NOT try to update previous fields directly during the confirmation step.
+- If the caller declines to give a reason for cancellation, record their response as-is.
 
 # Guardrails
 - Stay on topic. You handle calls for {company["name"]} only.
@@ -163,6 +174,7 @@ def compile_playbook(playbook: dict, source_filename: str = "unknown") -> dict:
         "contacts": playbook.get("contacts", {}),
         "hours": playbook["hours"],
         "intents": playbook["intents"],
+        "emergency_qualifiers": playbook.get("emergency_qualifiers", []),
     }
 
 
