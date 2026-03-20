@@ -17,6 +17,28 @@ async def _test_check_fee_approved(executor, session):
 actions.ACTION_REGISTRY["check_fee_approved"] = _test_check_fee_approved
 
 
+async def _test_check_emergency_confirmed(executor, session):
+    confirmed = executor.collected.get("emergency_confirmed", "").lower()
+    if confirmed in ("no", "n", "nope", "not yet", "hold on", "wait"):
+        return "The caller wants to correct something. Ask what they'd like to change."
+    return await executor.advance(session)
+
+
+async def _test_dispatch_oncall_tech(executor, session):
+    executor.outcome = "dispatched"
+    return 'Say EXACTLY: "Tech dispatched." [call_ended]'
+
+
+async def _test_take_message(executor, session):
+    executor.outcome = "message_taken"
+    return 'Say EXACTLY: "Message taken. Goodbye." [call_ended]'
+
+
+actions.ACTION_REGISTRY["check_emergency_confirmed"] = _test_check_emergency_confirmed
+actions.ACTION_REGISTRY["dispatch_oncall_tech"] = _test_dispatch_oncall_tech
+actions.ACTION_REGISTRY["take_message"] = _test_take_message
+
+
 def make_mock_session():
     session = AsyncMock()
     session.say = AsyncMock()
@@ -143,6 +165,131 @@ PLAYBOOK_VERBATIM_SPEAK_ALONE = {
                     "mode": "guided",
                     "prompt": "Name?",
                 },
+            ],
+        },
+    },
+    "service_areas": [],
+    "scripts": {},
+}
+
+PLAYBOOK_EMERGENCY = {
+    "intents": {
+        "emergency": {
+            "label": "Emergency Service",
+            "steps": [
+                {
+                    "type": "collect",
+                    "field": "name",
+                    "mode": "guided",
+                    "prompt": "Ask for name.",
+                },
+                {
+                    "type": "collect",
+                    "field": "phone",
+                    "mode": "guided",
+                    "prompt": "Ask for phone.",
+                },
+                {
+                    "type": "collect",
+                    "field": "address",
+                    "mode": "guided",
+                    "prompt": "Ask for address.",
+                },
+                {
+                    "type": "collect",
+                    "field": "emergency_confirmed",
+                    "mode": "guided",
+                    "prompt": "Confirm dispatch.",
+                },
+                {"type": "action", "fn": "check_emergency_confirmed"},
+                {"type": "action", "fn": "dispatch_oncall_tech"},
+            ],
+        },
+        "_fallback": {
+            "label": "Fallback",
+            "steps": [
+                {
+                    "type": "collect",
+                    "field": "name",
+                    "mode": "guided",
+                    "prompt": "Name?",
+                }
+            ],
+        },
+    },
+    "service_areas": [],
+    "scripts": {"closing_dispatched": "Tech sent."},
+}
+
+PLAYBOOK_CANCELLATION = {
+    "intents": {
+        "cancellation": {
+            "label": "Cancel Appointment",
+            "steps": [
+                {
+                    "type": "collect",
+                    "field": "name",
+                    "mode": "guided",
+                    "prompt": "Ask for name.",
+                },
+                {
+                    "type": "collect",
+                    "field": "phone",
+                    "mode": "guided",
+                    "prompt": "Ask for phone.",
+                },
+                {
+                    "type": "collect",
+                    "field": "cancellation_reason",
+                    "mode": "guided",
+                    "prompt": "Ask reason.",
+                },
+                {"type": "action", "fn": "take_message"},
+            ],
+        },
+        "_fallback": {
+            "label": "Fallback",
+            "steps": [
+                {
+                    "type": "collect",
+                    "field": "name",
+                    "mode": "guided",
+                    "prompt": "Name?",
+                }
+            ],
+        },
+    },
+    "service_areas": [],
+    "scripts": {"closing_message": "Message taken. Goodbye."},
+}
+
+PLAYBOOK_WARRANTY = {
+    "intents": {
+        "warranty": {
+            "label": "Warranty Claim",
+            "steps": [
+                {
+                    "type": "speak",
+                    "mode": "verbatim",
+                    "text": "All work has a one-year warranty.",
+                },
+                {
+                    "type": "collect",
+                    "field": "name",
+                    "mode": "guided",
+                    "prompt": "Ask for name.",
+                },
+            ],
+        },
+        "_fallback": {
+            "label": "Fallback",
+            "steps": [
+                {
+                    "type": "collect",
+                    "field": "name",
+                    "mode": "guided",
+                    "prompt": "Name?",
+                }
             ],
         },
     },
@@ -307,3 +454,84 @@ async def test_consecutive_actions_recurse_correctly():
     await executor.set_intent("test_intent", session)
     result = await executor.update_field("fee_approved", "yes", session)
     assert result == "Ask for name."
+
+
+@pytest.mark.asyncio
+async def test_emergency_full_flow():
+    """Emergency: collect name/phone/address -> confirm -> dispatch."""
+    executor = StepExecutor(PLAYBOOK_EMERGENCY)
+    session = make_mock_session()
+
+    result = await executor.set_intent("emergency", session)
+    assert result == "Ask for name."
+
+    result = await executor.update_field("name", "Eric Tails", session)
+    assert result == "Ask for phone."
+
+    result = await executor.update_field("phone", "337-232-2341", session)
+    assert result == "Ask for address."
+
+    result = await executor.update_field("address", "456 Cypress St 70502", session)
+    assert result == "Confirm dispatch."
+
+    result = await executor.update_field("emergency_confirmed", "yes", session)
+    assert "[call_ended]" in result
+    assert executor.outcome == "dispatched"
+
+
+@pytest.mark.asyncio
+async def test_emergency_confirmed_no_returns_correction_guidance():
+    """When caller says no at confirmation, check_emergency_confirmed returns a guidance message."""
+    executor = StepExecutor(PLAYBOOK_EMERGENCY)
+    session = make_mock_session()
+
+    await executor.set_intent("emergency", session)
+    await executor.update_field("name", "Eric Tails", session)
+    await executor.update_field("phone", "337-232-2341", session)
+    await executor.update_field("address", "456 Cypress St 70502", session)
+
+    # Saying "no" triggers the action stub which returns a guidance string
+    result = await executor.update_field("emergency_confirmed", "no", session)
+    assert "change" in result.lower()
+
+    # Executor is now sitting on the action step — overwriting a collected field
+    # via update_field is not possible at this point (current step is action, not collect).
+    # The collected data is still intact.
+    assert executor.collected["name"] == "Eric Tails"
+    assert executor.collected["phone"] == "337-232-2341"
+    assert executor.collected["address"] == "456 Cypress St 70502"
+    assert executor.collected["emergency_confirmed"] == "no"
+
+
+@pytest.mark.asyncio
+async def test_cancellation_full_flow():
+    """Cancellation: collect name/phone/reason -> take_message."""
+    executor = StepExecutor(PLAYBOOK_CANCELLATION)
+    session = make_mock_session()
+
+    result = await executor.set_intent("cancellation", session)
+    assert result == "Ask for name."
+
+    result = await executor.update_field("name", "Eric Tails", session)
+    assert result == "Ask for phone."
+
+    result = await executor.update_field("phone", "337-232-2341", session)
+    assert result == "Ask reason."
+
+    result = await executor.update_field(
+        "cancellation_reason", "Changed my mind", session
+    )
+    assert "[call_ended]" in result
+    assert executor.outcome == "message_taken"
+
+
+@pytest.mark.asyncio
+async def test_warranty_speak_then_collect():
+    """Warranty intent: speak verbatim warranty text, then collect name (lookahead merge)."""
+    executor = StepExecutor(PLAYBOOK_WARRANTY)
+    session = make_mock_session()
+
+    result = await executor.set_intent("warranty", session)
+    assert 'Say EXACTLY: "All work has a one-year warranty."' in result
+    assert "Ask for name." in result
+    assert executor.current_step_index == 1  # Lookahead advanced past speak
