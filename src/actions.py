@@ -59,7 +59,15 @@ async def dispatch_oncall_tech(executor, session) -> str:
     return f'Say EXACTLY: "{closing}" [call_ended]'
 
 
+async def check_emergency_confirmed(executor, session) -> str:
+    confirmed = executor.collected.get("emergency_confirmed", "").lower()
+    if confirmed in ("no", "n", "nope", "not yet", "hold on", "wait"):
+        return "The caller wants to correct something. Ask what they'd like to change — their name, phone number, or address."
+    return await executor.advance(session)
+
+
 ACTION_REGISTRY = {
+    "check_emergency_confirmed": check_emergency_confirmed,
     "check_fee_approved": check_fee_approved,
     "check_service_area": check_service_area,
     "check_booking_confirmed": check_booking_confirmed,

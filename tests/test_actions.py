@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.actions import (
+    check_emergency_confirmed,
     check_fee_approved,
     check_service_area,
     confirm_booking,
@@ -142,3 +143,63 @@ async def test_dispatch_oncall_tech_resolves_template():
     assert "Technician dispatched. We'll call 337-232-2341." in result
     assert executor.outcome == "dispatched"
     session.say.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_check_emergency_confirmed_yes_advances():
+    """When caller confirms, advance to next step (dispatch_oncall_tech)."""
+    playbook = {
+        "meta": {"company_name": "Test Co", "timezone": "America/Chicago"},
+        "intents": {
+            "emergency": {
+                "label": "Emergency",
+                "steps": [
+                    {
+                        "type": "collect",
+                        "field": "emergency_confirmed",
+                        "mode": "guided",
+                        "prompt": "Confirm dispatch.",
+                    },
+                    {"type": "action", "fn": "check_emergency_confirmed"},
+                    {"type": "action", "fn": "dispatch_oncall_tech"},
+                ],
+            },
+            "_fallback": {
+                "label": "Fallback",
+                "steps": [
+                    {
+                        "type": "collect",
+                        "field": "name",
+                        "mode": "guided",
+                        "prompt": "Name?",
+                    }
+                ],
+            },
+        },
+        "service_areas": [],
+        "scripts": {"closing_dispatched": "Tech sent to {phone}."},
+    }
+    executor = StepExecutor(playbook)
+    executor.current_intent = "emergency"
+    executor.current_step_index = 1  # on the check_emergency_confirmed action step
+    executor.collected = {
+        "name": "Eric",
+        "phone": "337-232-2341",
+        "address": "456 Cypress St",
+        "emergency_confirmed": "yes",
+    }
+    session = make_mock_session()
+    result = await check_emergency_confirmed(executor, session)
+    # Should advance through dispatch_oncall_tech and return closing
+    assert "[call_ended]" in result
+    assert executor.outcome == "dispatched"
+
+
+@pytest.mark.asyncio
+async def test_check_emergency_confirmed_no_asks_what_to_change():
+    """When caller says no, return guided prompt asking what to change."""
+    executor = StepExecutor(PLAYBOOK)
+    executor.collected = {"emergency_confirmed": "no"}
+    session = make_mock_session()
+    result = await check_emergency_confirmed(executor, session)
+    assert "what" in result.lower() and "change" in result.lower()
