@@ -10,6 +10,7 @@
     "on_call": { "start": "17:00", "end": "22:00" }
   },
   "service_areas": ["70502", "70503", "70506", "70507", "70508"],
+  "emergency_qualifiers": ["no heat", "no cooling", "no AC", "gas leak", "gas smell", "flooding", "water leak", "pipe burst", "electrical fire", "sparking", "no hot water"],
   "fees": {
     "service_call": {
       "amount": 89,
@@ -22,7 +23,8 @@
   "scripts": {
     "greeting": "Thank you for calling Acme HVAC, how can I help you today?",
     "closing_booked": "You're all set! A technician will be there at {appointment_time}. Thank you for calling Acme HVAC. Have a great day!",
-    "closing_message": "I've taken your message and someone will get back to you shortly. Have a great day!"
+    "closing_message": "I've taken your message and someone will get back to you shortly. Have a great day!",
+    "closing_dispatched": "I've contacted our on-call technician. They'll be reaching out to you shortly at {phone}. Thank you for calling Acme HVAC."
   },
   "intents": {
     "routine_service": {
@@ -40,6 +42,80 @@
         { "type": "collect", "field": "booking_confirmed", "mode": "guided", "prompt": "Summarize the appointment back to the caller — their name, the appointment time, the service address, and the issue — and ask if everything is correct." },
         { "type": "action", "fn": "check_booking_confirmed" },
         { "type": "action", "fn": "confirm_booking" }
+      ]
+    },
+    "emergency": {
+      "label": "Emergency Service",
+      "steps": [
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
+        { "type": "collect", "field": "address", "mode": "guided", "prompt": "Ask for the full service address including zip code." },
+        { "type": "collect", "field": "emergency_confirmed", "mode": "guided", "prompt": "Summarize back to the caller — their name, phone number, and service address — and confirm that a technician is being sent. Do NOT repeat the emergency description back." },
+        { "type": "action", "fn": "check_emergency_confirmed" },
+        { "type": "action", "fn": "dispatch_oncall_tech" }
+      ]
+    },
+    "cancellation": {
+      "label": "Cancel Appointment",
+      "steps": [
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
+        { "type": "collect", "field": "cancellation_reason", "mode": "guided", "prompt": "Ask the reason for the cancellation." },
+        { "type": "action", "fn": "take_message" }
+      ]
+    },
+    "reschedule": {
+      "label": "Reschedule Appointment",
+      "steps": [
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
+        { "type": "collect", "field": "preferred_time", "mode": "guided", "prompt": "Ask when they'd like to reschedule to." },
+        { "type": "action", "fn": "take_message" }
+      ]
+    },
+    "eta_request": {
+      "label": "Technician ETA Request",
+      "steps": [
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
+        { "type": "action", "fn": "take_message" }
+      ]
+    },
+    "warranty": {
+      "label": "Warranty Claim",
+      "steps": [
+        { "type": "speak", "mode": "verbatim", "text": "All of our work comes with a one-year parts and labor warranty. Let me get your information so we can look into this for you." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
+        { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask what warranty issue they're experiencing." },
+        { "type": "action", "fn": "take_message" }
+      ]
+    },
+    "billing": {
+      "label": "Billing Question",
+      "steps": [
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
+        { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask about their billing question or concern." },
+        { "type": "action", "fn": "take_message" }
+      ]
+    },
+    "complaint": {
+      "label": "Customer Complaint",
+      "steps": [
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
+        { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask them to describe their complaint." },
+        { "type": "action", "fn": "take_message" }
+      ]
+    },
+    "commercial": {
+      "label": "Commercial Service Request",
+      "steps": [
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
+        { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask what commercial service they need." },
+        { "type": "action", "fn": "take_message" }
       ]
     },
     "_fallback": {
