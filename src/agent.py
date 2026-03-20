@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 import time
@@ -132,9 +133,9 @@ async def entrypoint(ctx: JobContext):
 
     # Post-call summary on disconnect
     @ctx.room.on("participant_disconnected")
-    async def on_disconnect(participant):
+    def on_disconnect(participant):
         if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
-            await post_summary(agent.executor, agent.executor.call_start_time)
+            asyncio.create_task(post_summary(agent.executor, agent.executor.call_start_time))
 
 
 if __name__ == "__main__":
