@@ -63,8 +63,7 @@ class Assistant(Agent):
         self, context: RunContext, field_name: str, value: str
     ) -> str:
         """Record information the caller provided. Use the EXACT field name
-        from the current step prompt. Common fields: fee_approved, name, phone,
-        address, issue_description, appointment_time.
+        from the current step prompt.
 
         Args:
             field_name: The exact field name for the current step (e.g. "name", "phone", "address")
