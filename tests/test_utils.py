@@ -103,6 +103,43 @@ def test_detect_after_hours():
         assert detect_time_window(PLAYBOOK_HOURS) == "after_hours"
 
 
+PLAYBOOK_OVERNIGHT_ON_CALL = {
+    "meta": {"timezone": "America/Chicago"},
+    "hours": {
+        "office": {
+            "start": "08:00",
+            "end": "17:00",
+            "days": ["mon", "tue", "wed", "thu", "fri"],
+        },
+        "on_call": {"start": "17:00", "end": "06:00"},
+    },
+}
+
+
+def test_detect_on_call_overnight_evening():
+    """On-call window 17:00-06:00: 9pm should be on_call."""
+    with patch("src.utils.datetime") as mock_dt:
+        mock_dt.now.return_value = _mock_now(2026, 3, 18, 21, 0)  # Wed 9pm
+        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+        assert detect_time_window(PLAYBOOK_OVERNIGHT_ON_CALL) == "on_call"
+
+
+def test_detect_on_call_overnight_early_morning():
+    """On-call window 17:00-06:00: 3am should be on_call."""
+    with patch("src.utils.datetime") as mock_dt:
+        mock_dt.now.return_value = _mock_now(2026, 3, 19, 3, 0)  # Thu 3am
+        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+        assert detect_time_window(PLAYBOOK_OVERNIGHT_ON_CALL) == "on_call"
+
+
+def test_detect_on_call_overnight_after_end():
+    """On-call window 17:00-06:00: 7am should NOT be on_call."""
+    with patch("src.utils.datetime") as mock_dt:
+        mock_dt.now.return_value = _mock_now(2026, 3, 19, 7, 0)  # Thu 7am
+        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+        assert detect_time_window(PLAYBOOK_OVERNIGHT_ON_CALL) != "on_call"
+
+
 def test_detect_weekend_not_office():
     with patch("src.utils.datetime") as mock_dt:
         mock_dt.now.return_value = _mock_now(2026, 3, 21, 10, 0)  # Sat 10am

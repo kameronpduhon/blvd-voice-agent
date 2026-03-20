@@ -29,11 +29,13 @@ def detect_time_window(playbook: dict) -> str:
         return "office_hours"
 
     on_call = playbook["hours"].get("on_call")
-    if on_call and on_call["start"] <= current_time < on_call["end"]:
-        return "on_call"
-    # TODO: handle on-call hours that span midnight (e.g., 17:00-06:00).
-    # Current comparison breaks when end < start. Fine for Cajun HVAC (ends 22:00)
-    # but will need fixing when clients have overnight on-call windows.
+    if on_call:
+        if on_call["end"] < on_call["start"]:
+            # Spans midnight (e.g., 17:00-06:00): on-call if past start OR before end
+            if current_time >= on_call["start"] or current_time < on_call["end"]:
+                return "on_call"
+        elif on_call["start"] <= current_time < on_call["end"]:
+            return "on_call"
 
     return "after_hours"
 
