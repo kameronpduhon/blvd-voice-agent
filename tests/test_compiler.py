@@ -127,3 +127,115 @@ def test_compile_passes_through_intents():
 def test_compile_passes_through_service_areas():
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
     assert result["service_areas"] == ["70502"]
+
+
+def test_compile_system_prompt_includes_emergency_qualifiers():
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    pb["emergency_qualifiers"] = ["no heat", "gas leak"]
+    pb["intents"]["emergency"] = {
+        "label": "Emergency Service",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"}
+        ],
+    }
+    result = compile_playbook(pb, "test.json")
+    prompt = result["system_prompt"]
+    assert "no heat" in prompt
+    assert "gas leak" in prompt
+    assert "emergency" in prompt.lower()
+
+
+def test_compile_system_prompt_without_emergency_qualifiers():
+    """emergency_qualifiers is optional — playbook without it should compile fine."""
+    result = compile_playbook(VALID_PLAYBOOK, "test.json")
+    # Should not crash, just no qualifiers section
+    assert "system_prompt" in result
+
+
+def test_compile_system_prompt_includes_new_field_names():
+    result = compile_playbook(VALID_PLAYBOOK, "test.json")
+    prompt = result["system_prompt"]
+    assert "cancellation_reason" in prompt
+    assert "preferred_time" in prompt
+    assert "emergency_confirmed" in prompt
+
+
+def test_compile_all_ten_intents():
+    """Full playbook with all 10 intents compiles without error."""
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    pb["scripts"]["closing_dispatched"] = "Tech sent to {phone}."
+    pb["emergency_qualifiers"] = ["no heat", "gas leak"]
+    pb["intents"]["emergency"] = {
+        "label": "Emergency Service",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            {"type": "action", "fn": "check_emergency_confirmed"},
+            {"type": "action", "fn": "dispatch_oncall_tech"},
+        ],
+    }
+    pb["intents"]["cancellation"] = {
+        "label": "Cancel Appointment",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            {"type": "action", "fn": "take_message"},
+        ],
+    }
+    pb["intents"]["reschedule"] = {
+        "label": "Reschedule Appointment",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            {"type": "action", "fn": "take_message"},
+        ],
+    }
+    pb["intents"]["eta_request"] = {
+        "label": "Technician ETA Request",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            {"type": "action", "fn": "take_message"},
+        ],
+    }
+    pb["intents"]["warranty"] = {
+        "label": "Warranty Claim",
+        "steps": [
+            {"type": "speak", "mode": "verbatim", "text": "Warranty info."},
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            {"type": "action", "fn": "take_message"},
+        ],
+    }
+    pb["intents"]["billing"] = {
+        "label": "Billing Question",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            {"type": "action", "fn": "take_message"},
+        ],
+    }
+    pb["intents"]["complaint"] = {
+        "label": "Customer Complaint",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            {"type": "action", "fn": "take_message"},
+        ],
+    }
+    pb["intents"]["commercial"] = {
+        "label": "Commercial Service Request",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            {"type": "action", "fn": "take_message"},
+        ],
+    }
+    result = compile_playbook(pb, "test.json")
+    assert len(result["intents"]) == 10
+    prompt = result["system_prompt"]
+    # All non-underscore intents should appear in Available intents
+    for intent in [
+        "routine_service",
+        "emergency",
+        "cancellation",
+        "reschedule",
+        "eta_request",
+        "warranty",
+        "billing",
+        "complaint",
+        "commercial",
+    ]:
+        assert intent in prompt
