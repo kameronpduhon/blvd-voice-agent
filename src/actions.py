@@ -16,7 +16,7 @@ async def check_service_area(executor, session) -> str:
     if zip_code is None or zip_code not in executor.playbook["service_areas"]:
         executor.outcome = "out_of_area"
         return (
-            'Say EXACTLY: "Unfortunately we don\'t service that area. '
+            "Say EXACTLY: \"Unfortunately we don't service that area. "
             "I'd recommend searching online for providers near you. "
             f'Thank you for calling {company}." [call_ended]'
         )
@@ -51,10 +51,19 @@ async def take_message(executor, session) -> str:
     return f'Say EXACTLY: "{closing}" [call_ended]'
 
 
+async def dispatch_oncall_tech(executor, session) -> str:
+    closing = resolve_template(
+        executor.playbook["scripts"]["closing_dispatched"], executor.collected
+    )
+    executor.outcome = "dispatched"
+    return f'Say EXACTLY: "{closing}" [call_ended]'
+
+
 ACTION_REGISTRY = {
     "check_fee_approved": check_fee_approved,
     "check_service_area": check_service_area,
     "check_booking_confirmed": check_booking_confirmed,
     "confirm_booking": confirm_booking,
     "take_message": take_message,
+    "dispatch_oncall_tech": dispatch_oncall_tech,
 }

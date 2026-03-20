@@ -6,6 +6,7 @@ from src.actions import (
     check_fee_approved,
     check_service_area,
     confirm_booking,
+    dispatch_oncall_tech,
     take_message,
 )
 from src.step_executor import StepExecutor
@@ -47,6 +48,7 @@ PLAYBOOK = {
     "scripts": {
         "closing_booked": "All set for {appointment_time}, {name}!",
         "closing_message": "Message taken for {name}. Goodbye.",
+        "closing_dispatched": "Technician dispatched. We'll call {phone}.",
     },
 }
 
@@ -123,4 +125,20 @@ async def test_take_message_resolves_template():
     assert "[call_ended]" in result
     assert "Message taken for Eric. Goodbye." in result
     assert executor.outcome == "message_taken"
+    session.say.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_oncall_tech_resolves_template():
+    executor = StepExecutor(PLAYBOOK)
+    executor.collected = {
+        "phone": "337-232-2341",
+        "name": "Eric",
+        "address": "456 Cypress St",
+    }
+    session = make_mock_session()
+    result = await dispatch_oncall_tech(executor, session)
+    assert "[call_ended]" in result
+    assert "Technician dispatched. We'll call 337-232-2341." in result
+    assert executor.outcome == "dispatched"
     session.say.assert_not_called()
