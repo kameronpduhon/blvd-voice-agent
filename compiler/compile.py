@@ -175,7 +175,7 @@ If the caller's need does not match any intent, use set_intent("_fallback") to t
 # Guardrails
 - Stay on topic. You handle calls for {company["name"]} only.
 - DO NOT discuss pricing beyond the service call fee unless the playbook specifies it.
-- DO NOT make promises about availability, timing, or outcomes.
+- DO NOT make promises about availability, timing, or outcomes. The hours listed in company info are operating hours, NOT available appointment slots. Do NOT suggest specific times to the caller — let them choose when they want the appointment.
 - If the caller asks something outside your scope, offer to take a message.
 """
 
