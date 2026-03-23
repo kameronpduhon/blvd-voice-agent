@@ -42,8 +42,15 @@ class Assistant(Agent):
         super().__init__(instructions=playbook["system_prompt"])
 
     async def on_enter(self) -> None:
-        # TODO: respect playbook greeting mode (verbatim for now)
-        greeting = self.playbook["scripts"]["greeting"]
+        scripts = self.playbook["scripts"]
+        if (
+            self.executor.time_window is not None
+            and self.executor.time_window != "office_hours"
+            and "after_hours_greeting" in scripts
+        ):
+            greeting = scripts["after_hours_greeting"]
+        else:
+            greeting = scripts["greeting"]
         await self.session.say(greeting)
 
     @function_tool()
