@@ -79,7 +79,17 @@ Note: `_after_hours` starts with `_`, so the compiler correctly excludes it from
 
 ### Compiler validation
 
-The compiler must validate that both `_after_hours` and `_fallback` exist as required intents, and that `scripts.after_hours_greeting` is present. Without these, the agent would crash at runtime with a `KeyError` on a misconfigured playbook.
+After-hours support is optional per client. Some clients may use a third-party answering service and only route office-hours calls to the agent. Validation rules:
+
+- If `_after_hours` intent exists but `scripts.after_hours_greeting` is missing → **compiler error**
+- If `scripts.after_hours_greeting` exists but `_after_hours` intent is missing → **compiler error**
+- If neither exists → **compile fine**, no after-hours support (agent uses the regular greeting and all intents work normally at all times)
+
+`_fallback` remains required for all clients.
+
+### StepExecutor graceful fallback
+
+If `time_window != "office_hours"` but `_after_hours` is not in the playbook intents, StepExecutor does NOT redirect — it runs the normal intent flow and logs a warning. This prevents crashes for clients without after-hours configuration.
 
 ## File Changes
 
@@ -99,8 +109,14 @@ The compiler must validate that both `_after_hours` and `_fallback` exist as req
 - `test_off_hours_all_non_emergency_intents_reroute` — loop all 9 non-emergency intents, verify each routes to `_after_hours`
 - `test_office_hours_no_reroute` — set `time_window = "office_hours"`, verify intents route normally
 
+### New StepExecutor test (graceful fallback)
+- `test_off_hours_no_after_hours_intent_runs_normal_flow` — set `time_window = "on_call"`, playbook without `_after_hours`, call `set_intent("routine_service")`, assert `current_intent == "routine_service"` (no redirect, no crash)
+
 ### New compiler tests
-- `test_after_hours_intent_validated` — `_after_hours` intent passes validation
+- `test_after_hours_intent_and_script_both_present_passes` — playbook with both `_after_hours` and `after_hours_greeting` compiles fine
+- `test_after_hours_intent_without_script_raises` — `_after_hours` intent present but `after_hours_greeting` missing → compiler error
+- `test_after_hours_script_without_intent_raises` — `after_hours_greeting` present but `_after_hours` intent missing → compiler error
+- `test_no_after_hours_support_passes` — neither present → compiles fine
 - `test_system_prompt_includes_off_hours_notice` — verify off-hours section present
 
 ### Existing tests
