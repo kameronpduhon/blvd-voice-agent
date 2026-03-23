@@ -152,12 +152,27 @@ def test_compile_system_prompt_without_emergency_qualifiers():
     assert "system_prompt" in result
 
 
-def test_compile_system_prompt_includes_new_field_names():
+def test_compile_system_prompt_auto_generates_field_names():
+    """Field name list in system prompt is auto-generated from collect steps."""
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
     prompt = result["system_prompt"]
-    assert "cancellation_reason" in prompt
-    assert "preferred_time" in prompt
-    assert "emergency_confirmed" in prompt
+    # VALID_PLAYBOOK only has "name" as a collect field
+    assert "The field names are: name." in prompt
+
+    # Add an intent with more fields and verify they appear
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    pb["intents"]["cancellation"] = {
+        "label": "Cancellation",
+        "steps": [
+            {"type": "collect", "field": "phone", "mode": "guided", "prompt": "Phone?"},
+            {"type": "collect", "field": "cancellation_reason", "mode": "guided", "prompt": "Reason?"},
+        ],
+    }
+    result2 = compile_playbook(pb, "test.json")
+    prompt2 = result2["system_prompt"]
+    assert "name" in prompt2
+    assert "phone" in prompt2
+    assert "cancellation_reason" in prompt2
 
 
 def test_compile_all_ten_intents():

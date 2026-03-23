@@ -176,6 +176,34 @@ PLAYBOOK_VERBATIM_SPEAK_ALONE = {
     "scripts": {},
 }
 
+PLAYBOOK_GUIDED_SPEAK_ALONE = {
+    "intents": {
+        "test_intent": {
+            "label": "Test",
+            "steps": [
+                {
+                    "type": "speak",
+                    "mode": "guided",
+                    "prompt": "Let the caller know you'll take a message.",
+                },
+            ],
+        },
+        "_fallback": {
+            "label": "Fallback",
+            "steps": [
+                {
+                    "type": "collect",
+                    "field": "name",
+                    "mode": "guided",
+                    "prompt": "Name?",
+                },
+            ],
+        },
+    },
+    "service_areas": [],
+    "scripts": {},
+}
+
 PLAYBOOK_EMERGENCY = {
     "intents": {
         "emergency": {
@@ -435,6 +463,28 @@ async def test_verbatim_speak_no_lookahead():
     result = await executor.set_intent("test_intent", session)
     session.say.assert_not_called()
     assert 'Say EXACTLY: "Goodbye."' in result
+
+
+@pytest.mark.asyncio
+async def test_guided_speak_no_lookahead():
+    """Guided speak without following collect returns prompt without Say EXACTLY."""
+    executor = StepExecutor(PLAYBOOK_GUIDED_SPEAK_ALONE)
+    session = make_mock_session()
+    result = await executor.set_intent("test_intent", session)
+    session.say.assert_not_called()
+    assert result == "Let the caller know you'll take a message."
+    assert "Say EXACTLY" not in result
+
+
+@pytest.mark.asyncio
+async def test_guided_speak_with_collect_no_say_exactly():
+    """Guided speak with collect lookahead should NOT include Say EXACTLY."""
+    executor = StepExecutor(PLAYBOOK_GUIDED_SPEAK)
+    session = make_mock_session()
+    result = await executor.set_intent("test_intent", session)
+    assert "Say EXACTLY" not in result
+    assert "Greet the caller warmly." in result
+    assert "Ask for name." in result
 
 
 @pytest.mark.asyncio
