@@ -71,7 +71,7 @@ tests/
 7. **Running as `python src/agent.py`** requires sys.path fix for `from src.x` imports (already in agent.py and compile.py)
 8. **After modifying playbook JSON**, recompile: `uv run python compiler/compile.py playbooks/cajun-hvac.json`
 
-## Intents (10 total)
+## Intents (10 + 1 routing)
 
 - `routine_service` — full booking flow (fee → info → service area check → appointment → confirm → book)
 - `emergency` — urgent dispatch (info → confirm → dispatch on-call tech). No fee, no service area check.
