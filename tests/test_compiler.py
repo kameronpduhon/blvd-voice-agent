@@ -254,3 +254,44 @@ def test_compile_all_ten_intents():
         "commercial",
     ]:
         assert intent in prompt
+
+
+def test_after_hours_intent_and_script_both_present_passes():
+    """Playbook with both _after_hours intent and after_hours_greeting compiles fine."""
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    pb["scripts"]["after_hours_greeting"] = "Office is closed."
+    pb["intents"]["_after_hours"] = {
+        "label": "After Hours Message",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            {"type": "action", "fn": "take_message"},
+        ],
+    }
+    validate(pb)  # should not raise
+
+
+def test_after_hours_intent_without_script_raises():
+    """_after_hours intent without after_hours_greeting script is a compiler error."""
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    pb["intents"]["_after_hours"] = {
+        "label": "After Hours Message",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            {"type": "action", "fn": "take_message"},
+        ],
+    }
+    with pytest.raises(CompilerError, match="after_hours_greeting"):
+        validate(pb)
+
+
+def test_after_hours_script_without_intent_raises():
+    """after_hours_greeting script without _after_hours intent is a compiler error."""
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    pb["scripts"]["after_hours_greeting"] = "Office is closed."
+    with pytest.raises(CompilerError, match="_after_hours"):
+        validate(pb)
+
+
+def test_no_after_hours_support_passes():
+    """Playbook without _after_hours or after_hours_greeting compiles fine."""
+    validate(VALID_PLAYBOOK)  # should not raise — already works, but making it explicit

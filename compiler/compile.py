@@ -32,6 +32,18 @@ def validate(playbook: dict) -> None:
     if "_fallback" not in playbook["intents"]:
         raise CompilerError("Missing required intent: '_fallback'")
 
+    # After-hours support: _after_hours intent and after_hours_greeting must both be present, or neither
+    has_after_hours_intent = "_after_hours" in playbook["intents"]
+    has_after_hours_greeting = "after_hours_greeting" in playbook.get("scripts", {})
+    if has_after_hours_intent and not has_after_hours_greeting:
+        raise CompilerError(
+            "Intent '_after_hours' is defined but 'scripts.after_hours_greeting' is missing — add the greeting or remove the intent"
+        )
+    if has_after_hours_greeting and not has_after_hours_intent:
+        raise CompilerError(
+            "Script 'after_hours_greeting' is defined but intent '_after_hours' is missing — add the intent or remove the script"
+        )
+
     for intent_name, intent in playbook["intents"].items():
         if not intent.get("steps"):
             raise CompilerError(f"Intent '{intent_name}' has no steps")
