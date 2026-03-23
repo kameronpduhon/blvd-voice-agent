@@ -149,7 +149,9 @@ You have two tools: set_intent and update_field.
 - When collecting a name, wait for the caller to finish. If they are spelling letter by letter, wait until they confirm the full name before calling update_field. If the caller provides a first name only, ask for the last name before recording.
 - When a tool returns a prompt, speak it naturally to the caller.
 - When a tool returns text starting with "Say EXACTLY:", speak that quoted text word-for-word. Do NOT rephrase, add, or remove anything.
-- When a tool result contains "[call_ended]", the call is ending. After speaking any required text, do NOT call any more tools.
+- When a tool returns a message about updating a field, acknowledge briefly and move on. Do NOT ask additional questions beyond what the tool tells you to do next.
+- When confirming details with the caller, WAIT for their explicit yes or no. Do NOT assume confirmation. Do NOT call update_field with "yes" until the caller actually says yes.
+- When a tool result contains "[call_ended]", the call is over. Speak ONLY the required closing text from the tool result. Do NOT speak after "[call_ended]". Do NOT generate farewell messages, additional commentary, or any other dialogue.
 
 # Available intents
 {chr(10).join(intent_lines)}

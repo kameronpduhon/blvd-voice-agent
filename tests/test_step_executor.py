@@ -550,7 +550,7 @@ async def test_emergency_confirmed_no_allows_correction():
     # Overwrite a previously collected field — step stays on emergency_confirmed
     result = await executor.update_field("phone", "337-999-8888", session)
     assert executor.collected["phone"] == "337-999-8888"
-    assert "emergency_confirmed" in result
+    assert "Confirm dispatch." in result
 
     # Re-confirm
     result = await executor.update_field("emergency_confirmed", "yes", session)

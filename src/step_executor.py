@@ -76,7 +76,7 @@ class StepExecutor:
             # Allow overwriting a previously collected field without advancing
             if field_name in self.collected:
                 self.collected[field_name] = value
-                return f"Updated {field_name}. Now continue with {step['field']}."
+                return f"Updated {field_name}. {step['prompt']}"
             return f"Expected field '{step['field']}', got '{field_name}'. Please provide {step['field']}."
 
         if value.strip().lower() in PLACEHOLDER_PATTERNS:
