@@ -17,6 +17,7 @@ async def post_summary(executor, call_start_time: float) -> None:
     payload = {
         "caller_number": executor.collected.get("phone", ""),
         "intent": executor.current_intent,
+        "requested_intent": executor.requested_intent or executor.current_intent,
         "outcome": executor.outcome,
         "collected": executor.collected,
         "transcript": executor.transcript,
