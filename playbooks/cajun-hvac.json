@@ -24,7 +24,8 @@
     "greeting": "Thank you for calling Cajun HVAC, how can I help you today?",
     "closing_booked": "You're all set! A technician will be there at {appointment_time}. Thank you for calling Cajun HVAC. Have a great day!",
     "closing_message": "I've taken your message and someone will get back to you shortly. Have a great day!",
-    "closing_dispatched": "I've contacted our on-call technician. They'll be reaching out to you shortly at {phone}. Thank you for calling Cajun HVAC."
+    "closing_dispatched": "I've contacted our on-call technician. They'll be reaching out to you shortly at {phone}. Thank you for calling Cajun HVAC.",
+    "after_hours_greeting": "Thank you for calling Cajun HVAC. Our office is currently closed. If this is an emergency such as no heat, no cooling, or a gas leak, please let me know right away. Otherwise, I can take your information and have someone call you back during business hours."
   },
   "intents": {
     "routine_service": {
@@ -122,6 +123,14 @@
       "label": "Take a Message",
       "steps": [
         { "type": "speak", "mode": "guided", "prompt": "Let the caller know you'll take a message so someone can get back to them." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's name." },
+        { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback number." },
+        { "type": "action", "fn": "take_message" }
+      ]
+    },
+    "_after_hours": {
+      "label": "After Hours Message",
+      "steps": [
         { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's name." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback number." },
         { "type": "action", "fn": "take_message" }
