@@ -13,7 +13,17 @@ async def check_service_area(executor, session) -> str:
     company = executor.playbook.get("meta", {}).get("company_name", "us")
     address = executor.collected.get("address", "")
     zip_code = extract_zip(address)
-    if zip_code is None or zip_code not in executor.playbook["service_areas"]:
+
+    if zip_code is None:
+        # Missing zip — go back to the address step and ask for the zip
+        for i, step in enumerate(executor.current_steps):
+            if step.get("field") == "address":
+                executor.current_step_index = i
+                return "The address is missing a zip code. Ask the caller for their zip code so you can verify the service area."
+        # No address step found (shouldn't happen) — ask generically
+        return "The address is missing a zip code. Ask the caller for their zip code so you can verify the service area."
+
+    if zip_code not in executor.playbook["service_areas"]:
         executor.outcome = "out_of_area"
         return (
             "Say EXACTLY: \"Unfortunately we don't service that area. "
