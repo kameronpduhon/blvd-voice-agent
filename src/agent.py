@@ -102,8 +102,8 @@ async def entrypoint(ctx: JobContext):
 
     session = AgentSession(
         stt=inference.STT(model="deepgram/nova-3", language="multi"),
-        llm=inference.LLM(model="openai/gpt-4.1-mini"),
-        tts=inference.TTS(model="deepgram/aura-2", voice="andromeda"),
+        llm=inference.LLM(model="google/gemini-2.5-flash"),
+        tts=inference.TTS(model="deepgram/aura-2", voice="asteria"),
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
         preemptive_generation=True,
