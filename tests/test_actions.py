@@ -94,6 +94,61 @@ async def test_check_service_area_in_area():
 
 
 @pytest.mark.asyncio
+async def test_check_service_area_missing_zip_asks_for_zip():
+    """When address has no zip code, ask the caller for it instead of rejecting."""
+    playbook = {
+        "meta": {"company_name": "Test Co", "timezone": "America/Chicago"},
+        "intents": {
+            "routine_service": {
+                "label": "Routine Service",
+                "steps": [
+                    {
+                        "type": "collect",
+                        "field": "name",
+                        "mode": "guided",
+                        "prompt": "Ask for name.",
+                    },
+                    {
+                        "type": "collect",
+                        "field": "address",
+                        "mode": "guided",
+                        "prompt": "Ask for address.",
+                    },
+                    {"type": "action", "fn": "check_service_area"},
+                ],
+            },
+            "_fallback": {
+                "label": "Fallback",
+                "steps": [
+                    {
+                        "type": "collect",
+                        "field": "name",
+                        "mode": "guided",
+                        "prompt": "Ask name.",
+                    },
+                ],
+            },
+        },
+        "service_areas": ["70502", "70503"],
+        "scripts": {
+            "closing_booked": "All set!",
+            "closing_message": "Message taken.",
+        },
+    }
+    executor = StepExecutor(playbook)
+    executor.current_intent = "routine_service"
+    executor.current_step_index = 2  # on the check_service_area action step
+    executor.collected["address"] = "456 Cypress Street"
+    session = make_mock_session()
+    result = await check_service_area(executor, session)
+    assert "zip code" in result.lower()
+    assert "[call_ended]" not in result
+    assert executor.outcome is None
+    # Should rewind to the address collect step (index 1)
+    assert executor.current_step_index == 1
+
+
+@pytest.mark.asyncio
 async def test_check_service_area_out_of_area():
     executor = StepExecutor(PLAYBOOK)
     executor.collected["address"] = "123 Main St Houston 77001"

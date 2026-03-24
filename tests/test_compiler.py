@@ -156,6 +156,14 @@ def test_compile_system_prompt_without_emergency_qualifiers():
     assert "system_prompt" in result
 
 
+def test_compile_system_prompt_includes_address_zip_instruction():
+    """System prompt must instruct LLM to wait for complete address with zip."""
+    result = compile_playbook(VALID_PLAYBOOK, "test.json")
+    prompt = result["system_prompt"]
+    assert "zip code" in prompt.lower()
+    assert "NEVER submit a partial address" in prompt
+
+
 def test_compile_system_prompt_no_global_field_list():
     """System prompt should NOT contain a global field name list (fields are scoped per-intent at runtime)."""
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
