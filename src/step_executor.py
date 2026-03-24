@@ -62,7 +62,19 @@ class StepExecutor:
 
         self.current_intent = intent
         self.current_step_index = 0
-        return await self._dispatch_current_step(session)
+
+        # Scope LLM to only the fields valid for this intent
+        intent_fields = [
+            s["field"] for s in self.current_steps if s["type"] == "collect"
+        ]
+
+        result = await self._dispatch_current_step(session)
+
+        if intent_fields:
+            field_list = ", ".join(intent_fields)
+            result = f"{result}\n\nValid fields for this intent: {field_list}. Only use these field names with update_field."
+
+        return result
 
     async def update_field(self, field_name: str, value: str, session) -> str:
         if self.current_intent is None:

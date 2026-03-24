@@ -101,15 +101,9 @@ def build_system_prompt(playbook: dict) -> str:
     emergency_qualifiers = playbook.get("emergency_qualifiers", [])
 
     intent_lines = []
-    field_names = []
-    seen_fields = set()
     for k, v in intents.items():
         if not k.startswith("_"):
             intent_lines.append(f"- {k}: {v['label']}")
-        for step in v["steps"]:
-            if step["type"] == "collect" and step["field"] not in seen_fields:
-                seen_fields.add(step["field"])
-                field_names.append(step["field"])
 
     office_hours = format_hours(hours["office"])
     on_call_str = ""
@@ -160,7 +154,7 @@ You are interacting with the caller via voice. Apply these rules:
 You have two tools: set_intent and update_field.
 - After the greeting, identify the caller's intent and call set_intent ONCE. NEVER call set_intent again.
 - NEVER call update_field with placeholder values like [Name], TBD, N/A, or unknown. Only use real values the caller provides.
-- When calling update_field, use the EXACT field name the tool prompt tells you to collect. The field names are: {", ".join(field_names)}. DO NOT invent your own field names like "full_name" or "phone_number".
+- When calling update_field, use ONLY the field names listed in the set_intent response. DO NOT invent your own field names like "full_name" or "phone_number". DO NOT use field names from other intents.
 - When calling update_field, ALWAYS convert spoken numbers to digits. Phone numbers: "three three seven two three two twenty three forty one" → "337-232-2341". Addresses: "four five six Cypress Street seven zero five zero two" → "456 Cypress Street, 70502". NEVER store numbers as words.
 - When collecting a name, wait for the caller to finish. If they are spelling letter by letter, wait until they confirm the full name before calling update_field. If the caller provides a first name only, ask for the last name before recording.
 - When a tool returns a prompt, speak it naturally to the caller.

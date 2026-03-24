@@ -370,7 +370,7 @@ async def test_set_intent_returns_first_collect_prompt():
     executor = StepExecutor(MINIMAL_PLAYBOOK)
     session = make_mock_session()
     result = await executor.set_intent("routine_service", session)
-    assert result == "Ask for name."
+    assert "Ask for name." in result
     assert executor.current_intent == "routine_service"
     assert executor.current_step_index == 0
 
@@ -468,7 +468,7 @@ async def test_guided_speak_no_lookahead():
     session = make_mock_session()
     result = await executor.set_intent("test_intent", session)
     session.say.assert_not_called()
-    assert result == "Let the caller know you'll take a message."
+    assert "Let the caller know you'll take a message." in result
     assert "Say EXACTLY" not in result
 
 
@@ -513,7 +513,7 @@ async def test_emergency_full_flow():
     session = make_mock_session()
 
     result = await executor.set_intent("emergency", session)
-    assert result == "Ask for name."
+    assert "Ask for name." in result
 
     result = await executor.update_field("name", "Eric Tails", session)
     assert result == "Ask for phone."
@@ -552,7 +552,7 @@ async def test_cancellation_full_flow():
     session = make_mock_session()
 
     result = await executor.set_intent("cancellation", session)
-    assert result == "Ask for name."
+    assert "Ask for name." in result
 
     result = await executor.update_field("name", "Eric Tails", session)
     assert result == "Ask for phone."
@@ -736,3 +736,111 @@ async def test_off_hours_no_after_hours_intent_runs_normal_flow():
     await executor.set_intent("routine_service", session)
     assert executor.current_intent == "routine_service"
     assert executor.requested_intent is None
+
+
+# --- field scoping tests ---
+
+
+@pytest.mark.asyncio
+async def test_set_intent_includes_valid_fields_for_routine():
+    """set_intent result should list only routine_service fields."""
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    session = make_mock_session()
+    result = await executor.set_intent("routine_service", session)
+    assert "Valid fields for this intent: name, phone." in result
+
+
+@pytest.mark.asyncio
+async def test_set_intent_includes_valid_fields_for_emergency():
+    """set_intent result should list only emergency fields."""
+    executor = StepExecutor(PLAYBOOK_EMERGENCY)
+    session = make_mock_session()
+    result = await executor.set_intent("emergency", session)
+    assert "Valid fields for this intent: name, phone, address, emergency_confirmed." in result
+    # Must NOT include fields from other intents
+    assert "fee_approved" not in result
+    assert "booking_confirmed" not in result
+    assert "preferred_time" not in result
+    assert "cancellation_reason" not in result
+
+
+@pytest.mark.asyncio
+async def test_set_intent_includes_valid_fields_for_cancellation():
+    """set_intent result should list only cancellation fields."""
+    executor = StepExecutor(PLAYBOOK_CANCELLATION)
+    session = make_mock_session()
+    result = await executor.set_intent("cancellation", session)
+    assert "Valid fields for this intent: name, phone, cancellation_reason." in result
+    assert "emergency_confirmed" not in result
+    assert "booking_confirmed" not in result
+
+
+PLAYBOOK_CROSS_INTENT = {
+    "intents": {
+        "routine_service": {
+            "label": "Routine Service",
+            "steps": [
+                {"type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for name."},
+                {"type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for phone."},
+                {"type": "collect", "field": "booking_confirmed", "mode": "guided", "prompt": "Confirm booking."},
+            ],
+        },
+        "emergency": {
+            "label": "Emergency Service",
+            "steps": [
+                {"type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for name."},
+                {"type": "collect", "field": "emergency_confirmed", "mode": "guided", "prompt": "Confirm dispatch."},
+                {"type": "action", "fn": "dispatch_oncall_tech"},
+            ],
+        },
+        "reschedule": {
+            "label": "Reschedule",
+            "steps": [
+                {"type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for name."},
+                {"type": "collect", "field": "preferred_time", "mode": "guided", "prompt": "Ask when."},
+                {"type": "action", "fn": "take_message"},
+            ],
+        },
+        "_fallback": {
+            "label": "Fallback",
+            "steps": [
+                {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+            ],
+        },
+    },
+    "service_areas": [],
+    "scripts": {"closing_dispatched": "Tech sent.", "closing_message": "Message taken."},
+}
+
+
+@pytest.mark.asyncio
+async def test_routine_service_fields_exclude_emergency_and_reschedule():
+    """routine_service must not see emergency_confirmed or preferred_time."""
+    executor = StepExecutor(PLAYBOOK_CROSS_INTENT)
+    session = make_mock_session()
+    result = await executor.set_intent("routine_service", session)
+    assert "booking_confirmed" in result
+    assert "emergency_confirmed" not in result
+    assert "preferred_time" not in result
+
+
+@pytest.mark.asyncio
+async def test_emergency_fields_exclude_routine_and_reschedule():
+    """emergency must not see booking_confirmed or preferred_time."""
+    executor = StepExecutor(PLAYBOOK_CROSS_INTENT)
+    session = make_mock_session()
+    result = await executor.set_intent("emergency", session)
+    assert "emergency_confirmed" in result
+    assert "booking_confirmed" not in result
+    assert "preferred_time" not in result
+
+
+@pytest.mark.asyncio
+async def test_reschedule_fields_exclude_routine_and_emergency():
+    """reschedule must not see booking_confirmed or emergency_confirmed."""
+    executor = StepExecutor(PLAYBOOK_CROSS_INTENT)
+    session = make_mock_session()
+    result = await executor.set_intent("reschedule", session)
+    assert "preferred_time" in result
+    assert "booking_confirmed" not in result
+    assert "emergency_confirmed" not in result

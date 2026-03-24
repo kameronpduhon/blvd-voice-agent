@@ -156,32 +156,14 @@ def test_compile_system_prompt_without_emergency_qualifiers():
     assert "system_prompt" in result
 
 
-def test_compile_system_prompt_auto_generates_field_names():
-    """Field name list in system prompt is auto-generated from collect steps."""
+def test_compile_system_prompt_no_global_field_list():
+    """System prompt should NOT contain a global field name list (fields are scoped per-intent at runtime)."""
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
     prompt = result["system_prompt"]
-    # VALID_PLAYBOOK only has "name" as a collect field
-    assert "The field names are: name." in prompt
-
-    # Add an intent with more fields and verify they appear
-    pb = json.loads(json.dumps(VALID_PLAYBOOK))
-    pb["intents"]["cancellation"] = {
-        "label": "Cancellation",
-        "steps": [
-            {"type": "collect", "field": "phone", "mode": "guided", "prompt": "Phone?"},
-            {
-                "type": "collect",
-                "field": "cancellation_reason",
-                "mode": "guided",
-                "prompt": "Reason?",
-            },
-        ],
-    }
-    result2 = compile_playbook(pb, "test.json")
-    prompt2 = result2["system_prompt"]
-    assert "name" in prompt2
-    assert "phone" in prompt2
-    assert "cancellation_reason" in prompt2
+    assert "The field names are:" not in prompt
+    # Should instruct to use only fields from set_intent response
+    assert "set_intent response" in prompt or "set_intent" in prompt
+    assert "DO NOT invent your own field names" in prompt
 
 
 def test_compile_all_ten_intents():

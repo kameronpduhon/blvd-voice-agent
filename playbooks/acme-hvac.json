@@ -51,7 +51,7 @@
         { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
         { "type": "collect", "field": "address", "mode": "guided", "prompt": "Ask for the full service address including zip code." },
-        { "type": "collect", "field": "emergency_confirmed", "mode": "guided", "prompt": "Summarize the caller's name, phone number, and service address back to them. Ask if everything is correct before we send a technician." },
+        { "type": "collect", "field": "emergency_confirmed", "mode": "guided", "prompt": "Confirm the caller's name, phone number, and service address. Then tell them you are going to contact the on-call technician to come to their location right away, and ask if you should go ahead and dispatch them. Record yes or no." },
         { "type": "action", "fn": "check_emergency_confirmed" },
         { "type": "action", "fn": "dispatch_oncall_tech" }
       ]
