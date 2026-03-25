@@ -37,7 +37,7 @@
         { "type": "action", "fn": "check_service_area" },
         { "type": "collect", "field": "appointment_time", "mode": "guided", "prompt": "Ask when they'd like to schedule the service appointment." },
         { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask what service they need or what issue they're experiencing." },
-        { "type": "speak", "mode": "verbatim", "text": "Just to let you know, there is an $89 service call fee that is waived if you proceed with the repair." },
+        { "type": "speak", "mode": "verbatim", "text": "Just to let you know, there is an $89 service call fee that is waived if you proceed with the repair. Would you like to continue?" },
         { "type": "collect", "field": "fee_approved", "mode": "guided", "prompt": "Wait for the caller to confirm they accept the fee. Record yes or no." },
         { "type": "action", "fn": "check_fee_approved" },
         { "type": "collect", "field": "booking_confirmed", "mode": "guided", "prompt": "Summarize the appointment back to the caller — their name, the appointment time, the service address, and the issue — and ask if everything is correct." },
