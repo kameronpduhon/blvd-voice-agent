@@ -31,15 +31,15 @@
     "routine_service": {
       "label": "Routine Service Request",
       "steps": [
-        { "type": "speak", "mode": "verbatim", "text": "There is an $89 service call fee that is waived if you proceed with the repair. Would you like to continue?" },
-        { "type": "collect", "field": "fee_approved", "mode": "guided", "prompt": "Wait for the caller to confirm they accept the fee. Record yes or no." },
-        { "type": "action", "fn": "check_fee_approved" },
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
         { "type": "collect", "field": "address", "mode": "guided", "prompt": "Ask for the full service address including zip code." },
         { "type": "action", "fn": "check_service_area" },
-        { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask what service they need or what issue they're experiencing." },
         { "type": "collect", "field": "appointment_time", "mode": "guided", "prompt": "Ask when they'd like to schedule the service appointment." },
+        { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask what service they need or what issue they're experiencing." },
+        { "type": "speak", "mode": "verbatim", "text": "Just to let you know, there is an $89 service call fee that is waived if you proceed with the repair." },
+        { "type": "collect", "field": "fee_approved", "mode": "guided", "prompt": "Wait for the caller to confirm they accept the fee. Record yes or no." },
+        { "type": "action", "fn": "check_fee_approved" },
         { "type": "collect", "field": "booking_confirmed", "mode": "guided", "prompt": "Summarize the appointment back to the caller — their name, the appointment time, the service address, and the issue — and ask if everything is correct." },
         { "type": "action", "fn": "check_booking_confirmed" },
         { "type": "action", "fn": "confirm_booking" }
@@ -48,7 +48,7 @@
     "emergency": {
       "label": "Emergency Service",
       "steps": [
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
         { "type": "collect", "field": "address", "mode": "guided", "prompt": "Ask for the full service address including zip code." },
         { "type": "collect", "field": "emergency_confirmed", "mode": "guided", "prompt": "Confirm the caller's name, phone number, and service address. Then tell them you are going to contact the on-call technician to come to their location right away, and ask if you should go ahead and dispatch them. Record yes or no." },
@@ -59,7 +59,7 @@
     "cancellation": {
       "label": "Cancel Appointment",
       "steps": [
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
         { "type": "collect", "field": "cancellation_reason", "mode": "guided", "prompt": "Ask the reason for the cancellation." },
         { "type": "action", "fn": "take_message" }
@@ -68,7 +68,7 @@
     "reschedule": {
       "label": "Reschedule Appointment",
       "steps": [
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
         { "type": "collect", "field": "preferred_time", "mode": "guided", "prompt": "Ask when they'd like to reschedule to." },
         { "type": "action", "fn": "take_message" }
@@ -77,7 +77,7 @@
     "eta_request": {
       "label": "Technician ETA Request",
       "steps": [
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
         { "type": "action", "fn": "take_message" }
       ]
@@ -86,7 +86,7 @@
       "label": "Warranty Claim",
       "steps": [
         { "type": "speak", "mode": "verbatim", "text": "All of our work comes with a one-year parts and labor warranty. Let me get your information so we can look into this for you." },
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
         { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask what warranty issue they're experiencing." },
         { "type": "action", "fn": "take_message" }
@@ -95,7 +95,7 @@
     "billing": {
       "label": "Billing Question",
       "steps": [
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
         { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask about their billing question or concern." },
         { "type": "action", "fn": "take_message" }
@@ -104,7 +104,7 @@
     "complaint": {
       "label": "Customer Complaint",
       "steps": [
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
         { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask them to describe their complaint." },
         { "type": "action", "fn": "take_message" }
@@ -113,7 +113,7 @@
     "commercial": {
       "label": "Commercial Service Request",
       "steps": [
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback phone number." },
         { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask what commercial service they need." },
         { "type": "action", "fn": "take_message" }
@@ -123,7 +123,7 @@
       "label": "Take a Message",
       "steps": [
         { "type": "speak", "mode": "guided", "prompt": "Let the caller know you'll take a message so someone can get back to them." },
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback number." },
         { "type": "action", "fn": "take_message" }
       ]
@@ -131,7 +131,7 @@
     "_after_hours": {
       "label": "After Hours Message",
       "steps": [
-        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's name." },
+        { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback number." },
         { "type": "action", "fn": "take_message" }
       ]

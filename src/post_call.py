@@ -10,19 +10,19 @@ logger = logging.getLogger("agent")
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 
 
-async def post_summary(executor, call_start_time: float) -> None:
-    """Post call summary to Laravel API with retry logic."""
+async def post_summary_from_userdata(userdata: dict, call_start_time: float) -> None:
+    """Post call summary to Laravel API with retry logic. Reads from session.userdata."""
     duration = int(time.time() - call_start_time) if call_start_time else 0
 
     payload = {
-        "caller_number": executor.collected.get("phone", ""),
-        "intent": executor.current_intent,
-        "requested_intent": executor.requested_intent or executor.current_intent,
-        "outcome": executor.outcome,
-        "collected": executor.collected,
-        "transcript": executor.transcript,
+        "caller_number": userdata.get("collected", {}).get("phone", ""),
+        "intent": userdata.get("intent"),
+        "requested_intent": userdata.get("requested_intent") or userdata.get("intent"),
+        "outcome": userdata.get("outcome"),
+        "collected": userdata.get("collected", {}),
+        "transcript": userdata.get("transcript", ""),
         "duration_seconds": duration,
-        "time_window": executor.time_window,
+        "time_window": userdata.get("time_window"),
     }
     # TODO: add "dnis" from SIP headers when API-based loading is implemented
 

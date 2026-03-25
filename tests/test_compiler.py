@@ -106,16 +106,35 @@ def test_compile_produces_meta():
     assert "compiled_at" in result["meta"]
 
 
-def test_compile_produces_system_prompt():
+def test_compile_produces_router_prompt():
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
-    prompt = result["system_prompt"]
+    prompt = result["router_prompt"]
     assert "Test Co" in prompt
-    assert "set_intent" in prompt
-    assert "update_field" in prompt
-    assert "NEVER" in prompt
-    assert "Say EXACTLY" in prompt
-    assert "[call_ended]" in prompt
+    assert "route_to_intent" in prompt
     assert "_fallback" in prompt
+    # Router prompt should NOT contain field names or fee info
+    assert "update_field" not in prompt
+    assert "$89" not in prompt
+
+
+def test_compile_produces_intent_prompts():
+    result = compile_playbook(VALID_PLAYBOOK, "test.json")
+    assert "intent_prompts" in result
+    assert "routine_service" in result["intent_prompts"]
+    assert "_fallback" in result["intent_prompts"]
+    # Intent prompts should contain update_field and escalate
+    rs_prompt = result["intent_prompts"]["routine_service"]
+    assert "update_field" in rs_prompt
+    assert "escalate" in rs_prompt
+    assert "NEVER" in rs_prompt
+    assert "Say EXACTLY" in rs_prompt
+    assert "[call_ended]" in rs_prompt
+
+
+def test_compile_no_system_prompt():
+    """Compiled output should NOT contain old system_prompt key."""
+    result = compile_playbook(VALID_PLAYBOOK, "test.json")
+    assert "system_prompt" not in result
 
 
 def test_compile_passes_through_intents():
@@ -129,7 +148,7 @@ def test_compile_passes_through_service_areas():
     assert result["service_areas"] == ["70502"]
 
 
-def test_compile_system_prompt_includes_emergency_qualifiers():
+def test_compile_router_prompt_includes_emergency_qualifiers():
     pb = json.loads(json.dumps(VALID_PLAYBOOK))
     pb["emergency_qualifiers"] = ["no heat", "gas leak"]
     pb["intents"]["emergency"] = {
@@ -139,7 +158,7 @@ def test_compile_system_prompt_includes_emergency_qualifiers():
         ],
     }
     result = compile_playbook(pb, "test.json")
-    prompt = result["system_prompt"]
+    prompt = result["router_prompt"]
     assert "no heat" in prompt
     assert "gas leak" in prompt
     assert "emergency" in prompt.lower()
@@ -149,29 +168,43 @@ def test_compile_system_prompt_includes_emergency_qualifiers():
     assert "NOT emergency" in prompt
 
 
-def test_compile_system_prompt_without_emergency_qualifiers():
+def test_compile_router_prompt_without_emergency_qualifiers():
     """emergency_qualifiers is optional — playbook without it should compile fine."""
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
-    # Should not crash, just no qualifiers section
-    assert "system_prompt" in result
+    assert "router_prompt" in result
 
 
-def test_compile_system_prompt_includes_address_zip_instruction():
-    """System prompt must instruct LLM to wait for complete address with zip."""
+def test_compile_intent_prompt_includes_address_zip_instruction():
+    """Intent prompts must instruct LLM to wait for complete address with zip."""
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
-    prompt = result["system_prompt"]
+    prompt = result["intent_prompts"]["routine_service"]
     assert "zip code" in prompt.lower()
     assert "NEVER submit a partial address" in prompt
 
 
-def test_compile_system_prompt_no_global_field_list():
-    """System prompt should NOT contain a global field name list (fields are scoped per-intent at runtime)."""
+def test_compile_intent_prompt_includes_field_names():
+    """Intent prompts should list valid field names for that intent."""
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
-    prompt = result["system_prompt"]
-    assert "The field names are:" not in prompt
-    # Should instruct to use only fields from set_intent response
-    assert "set_intent response" in prompt or "set_intent" in prompt
-    assert "DO NOT invent your own field names" in prompt
+    rs_prompt = result["intent_prompts"]["routine_service"]
+    assert "name" in rs_prompt
+    assert "DO NOT invent your own field names" in rs_prompt
+
+
+def test_compile_intent_prompt_scopes_company_info():
+    """routine_service gets fee info; _fallback does not."""
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    result = compile_playbook(pb, "test.json")
+    rs_prompt = result["intent_prompts"]["routine_service"]
+    fb_prompt = result["intent_prompts"]["_fallback"]
+    assert "$89" in rs_prompt
+    assert "$89" not in fb_prompt
+
+
+def test_compile_intent_prompt_name_validation():
+    """Intent prompts should require first and last name."""
+    result = compile_playbook(VALID_PLAYBOOK, "test.json")
+    rs_prompt = result["intent_prompts"]["routine_service"]
+    assert "first and last name" in rs_prompt
 
 
 def test_compile_all_ten_intents():
@@ -239,8 +272,8 @@ def test_compile_all_ten_intents():
     }
     result = compile_playbook(pb, "test.json")
     assert len(result["intents"]) == 10
-    prompt = result["system_prompt"]
-    # All non-underscore intents should appear in Available intents
+    # All non-underscore intents should appear in router prompt
+    router_prompt = result["router_prompt"]
     for intent in [
         "routine_service",
         "emergency",
@@ -252,7 +285,9 @@ def test_compile_all_ten_intents():
         "complaint",
         "commercial",
     ]:
-        assert intent in prompt
+        assert intent in router_prompt
+    # Each intent should have its own prompt
+    assert len(result["intent_prompts"]) == 10
 
 
 def test_after_hours_intent_and_script_both_present_passes():
@@ -296,14 +331,15 @@ def test_no_after_hours_support_passes():
     validate(VALID_PLAYBOOK)  # should not raise — already works, but making it explicit
 
 
-def test_system_prompt_includes_off_hours_notice():
-    """System prompt includes conditional off-hours guidance for the LLM."""
+def test_router_prompt_includes_after_hours_awareness():
+    """Router prompt includes after-hours awareness for the LLM."""
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
-    prompt = result["system_prompt"]
-    assert "outside of office hours" in prompt
+    prompt = result["router_prompt"]
+    assert "emergency" in prompt.lower()
+    assert "route" in prompt.lower()
 
 
-def test_after_hours_intent_excluded_from_available_intents():
+def test_after_hours_intent_excluded_from_router_prompt():
     """_after_hours (underscore prefix) must NOT appear in Available intents list."""
     pb = json.loads(json.dumps(VALID_PLAYBOOK))
     pb["scripts"]["after_hours_greeting"] = "Office is closed."
@@ -315,7 +351,7 @@ def test_after_hours_intent_excluded_from_available_intents():
         ],
     }
     result = compile_playbook(pb, "test.json")
-    prompt = result["system_prompt"]
+    prompt = result["router_prompt"]
     # Extract only the bullet-point lines in the Available intents section
     intents_start = prompt.index("# Available intents")
     intents_end = prompt.index("#", intents_start + 1)
@@ -327,3 +363,25 @@ def test_after_hours_intent_excluded_from_available_intents():
     bullet_text = "\n".join(bullet_lines)
     assert "_after_hours" not in bullet_text
     assert "_fallback" not in bullet_text  # confirm existing behavior too
+
+
+def test_intent_prompt_has_routine_service_conversation_rules():
+    """routine_service intent prompt includes specific conversation rules."""
+    result = compile_playbook(VALID_PLAYBOOK, "test.json")
+    rs_prompt = result["intent_prompts"]["routine_service"]
+    assert "booking_confirmed" in rs_prompt or "appointment time" in rs_prompt
+
+
+def test_intent_prompt_emergency_has_contacts():
+    """Emergency intent prompt includes on-call tech contact info."""
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    pb["intents"]["emergency"] = {
+        "label": "Emergency Service",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+        ],
+    }
+    result = compile_playbook(pb, "test.json")
+    em_prompt = result["intent_prompts"]["emergency"]
+    assert "Mike" in em_prompt
+    assert "555-0199" in em_prompt

@@ -16,9 +16,9 @@ PLACEHOLDER_PATTERNS = {
 
 
 class StepExecutor:
-    def __init__(self, playbook: dict):
+    def __init__(self, playbook: dict, intent: str, pre_collected: dict | None = None):
         self.playbook = playbook
-        self.current_intent: str | None = None
+        self.current_intent: str = intent
         self.current_step_index: int = 0
         self.collected: dict[str, str] = {}
         self.transcript: str = ""
@@ -26,6 +26,21 @@ class StepExecutor:
         self.time_window: str | None = None
         self.call_start_time: float | None = None
         self.requested_intent: str | None = None
+
+        # Pre-populate fields carried from a previous agent (e.g., name, phone)
+        if pre_collected:
+            for field, value in pre_collected.items():
+                self.collected[field] = value
+            self._skip_pre_collected_steps()
+
+    def _skip_pre_collected_steps(self):
+        """Skip past collect steps for fields that are already in self.collected."""
+        while self.current_step_index < len(self.current_steps):
+            step = self.current_steps[self.current_step_index]
+            if step["type"] == "collect" and step["field"] in self.collected:
+                self.current_step_index += 1
+            else:
+                break
 
     @property
     def current_steps(self) -> list[dict]:
@@ -39,47 +54,7 @@ class StepExecutor:
             return self.current_steps[next_idx]
         return None
 
-    async def set_intent(self, intent: str, session) -> str:
-        if self.current_intent is not None:
-            return "Intent has already been set. Continue with update_field."
-
-        if intent not in self.playbook["intents"]:
-            intent = "_fallback"
-
-        # Off-hours routing: redirect non-emergency to _after_hours
-        if (
-            self.time_window is not None
-            and self.time_window != "office_hours"
-            and intent != "emergency"
-        ):
-            if "_after_hours" in self.playbook["intents"]:
-                self.requested_intent = intent
-                intent = "_after_hours"
-            else:
-                logger.warning(
-                    "Off-hours call but no _after_hours intent configured — running normal flow"
-                )
-
-        self.current_intent = intent
-        self.current_step_index = 0
-
-        # Scope LLM to only the fields valid for this intent
-        intent_fields = [
-            s["field"] for s in self.current_steps if s["type"] == "collect"
-        ]
-
-        result = await self._dispatch_current_step(session)
-
-        if intent_fields:
-            field_list = ", ".join(intent_fields)
-            result = f"{result}\n\nValid fields for this intent: {field_list}. Only use these field names with update_field."
-
-        return result
-
     async def update_field(self, field_name: str, value: str, session) -> str:
-        if self.current_intent is None:
-            return "No intent set. Call set_intent first."
-
         step = self.current_steps[self.current_step_index]
         if step["type"] != "collect":
             return "Current step is not a collect step."
