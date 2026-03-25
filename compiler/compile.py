@@ -44,6 +44,33 @@ def validate(playbook: dict) -> None:
             "Script 'after_hours_greeting' is defined but intent '_after_hours' is missing — add the intent or remove the script"
         )
 
+    # Transfer messages and intent greetings must reference valid intents and appear in matching pairs
+    transfer_messages = playbook.get("scripts", {}).get("transfer_messages", {})
+    intent_greetings = playbook.get("scripts", {}).get("intent_greetings", {})
+
+    for intent_name in transfer_messages:
+        if intent_name not in playbook["intents"]:
+            raise CompilerError(
+                f"scripts.transfer_messages references unknown intent: '{intent_name}'"
+            )
+    for intent_name in intent_greetings:
+        if intent_name not in playbook["intents"]:
+            raise CompilerError(
+                f"scripts.intent_greetings references unknown intent: '{intent_name}'"
+            )
+
+    # Transfer messages and intent greetings should appear in matching pairs
+    transfer_only = set(transfer_messages.keys()) - set(intent_greetings.keys())
+    greeting_only = set(intent_greetings.keys()) - set(transfer_messages.keys())
+    if transfer_only:
+        raise CompilerError(
+            f"Intents have transfer_messages but no intent_greetings: {', '.join(sorted(transfer_only))}"
+        )
+    if greeting_only:
+        raise CompilerError(
+            f"Intents have intent_greetings but no transfer_messages: {', '.join(sorted(greeting_only))}"
+        )
+
     for intent_name, intent in playbook["intents"].items():
         if not intent.get("steps"):
             raise CompilerError(f"Intent '{intent_name}' has no steps")
@@ -104,6 +131,7 @@ You are interacting with the caller via voice. Apply these rules:
 
 def build_router_prompt(playbook: dict) -> str:
     company = playbook["company"]
+    hours = playbook["hours"]
     intents = playbook["intents"]
     emergency_qualifiers = playbook.get("emergency_qualifiers", [])
 
@@ -137,12 +165,31 @@ Examples — NOT emergency (symptom without urgency):
 DO NOT pattern-match symptoms alone. A caller mentioning "no AC" or "no heat" is NOT automatically an emergency. The caller MUST express urgency or danger. When in doubt, route to routine_service.
 """
 
+    # Company info for direct answers (hours, address, phone only — no fees, zips, or service details)
+    office_hours = format_hours(hours["office"])
+    company_info_lines = [
+        f"- Company: {company['name']}",
+        f"- Address: {company.get('address', '')}",
+        f"- Phone: {company.get('phone', '')}",
+        f"- Office hours: {office_hours}",
+    ]
+    on_call = hours.get("on_call")
+    if on_call:
+        company_info_lines.append(f"- On-call hours: {format_hours(on_call)}")
+    company_info = "\n".join(company_info_lines)
+
     return f"""You are a virtual receptionist for {company["name"]} in {company.get("address", "")}.
 
 {_output_rules()}
 
 # Tools
 You have one tool: route_to_intent. After the greeting, identify what the caller needs and call route_to_intent with the intent name. Call it exactly ONCE.
+
+# Simple info questions
+If the caller asks a simple informational question — such as business hours, company address, or phone number — answer it directly from the company information below. Do NOT route to an intent for simple questions. After answering, ask "Is there anything else I can help you with?" and be ready to route if they need a service.
+
+# Company info
+{company_info}
 
 # Available intents
 {chr(10).join(intent_lines)}
@@ -153,7 +200,7 @@ If the caller describes an emergency, route to emergency regardless of time. For
 
 # Guardrails
 - Stay on topic. You handle calls for {company["name"]} only.
-- DO NOT answer questions yourself. Your only job is to identify the caller's need and route them.
+- DO NOT answer questions yourself EXCEPT for simple informational questions (hours, address, phone number). For anything requiring a service, route to the appropriate intent.
 - If unsure what the caller needs, route to _fallback.
 """
 
@@ -215,6 +262,15 @@ def build_intent_prompt(playbook: dict, intent_name: str) -> str:
 - If the caller declines to give a reason for cancellation, record their response as-is.
 """
 
+    # Greeting-aware instruction for intents that have an intent_greetings entry
+    intent_greetings = playbook.get("scripts", {}).get("intent_greetings", {})
+    greeting_instruction = ""
+    if intent_name in intent_greetings:
+        greeting_instruction = """
+# Greeting
+The greeting has already introduced you and asked for the caller's name. Wait for them to respond. Do NOT re-ask for the name. When they give their name, call update_field with the name field.
+"""
+
     return f"""You are a specialist agent for {company["name"]} in {company.get("address", "")} handling: {intent.get("label", intent_name)}.
 
 {_output_rules()}
@@ -240,7 +296,7 @@ You have two tools: update_field and escalate.
 
 # Company info
 {company_info}
-{conversation_rules}
+{conversation_rules}{greeting_instruction}
 # Guardrails
 - Stay on topic. You handle calls for {company["name"]} only.
 - DO NOT discuss pricing beyond the service call fee unless specifically instructed.

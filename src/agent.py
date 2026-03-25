@@ -124,6 +124,13 @@ class RouterAgent(Agent):
         self.session.userdata["requested_intent"] = requested_intent
         self.session.userdata["time_window"] = self.time_window
 
+        # Speak transfer announcement if this intent has one — must complete before handoff
+        transfer_messages = self.playbook["scripts"].get("transfer_messages", {})
+        if actual_intent in transfer_messages:
+            await self.session.say(
+                transfer_messages[actual_intent], allow_interruptions=False
+            )
+
         # Read pre_collected from userdata (set by escalation)
         pre_collected = self.session.userdata.get("pre_collected")
         self.session.userdata["pre_collected"] = None
@@ -159,7 +166,15 @@ class IntentAgent(Agent):
         super().__init__(instructions=playbook["intent_prompts"][intent])
 
     async def on_enter(self) -> None:
-        # Dispatch the first step and let the LLM speak it
+        # Speak intent greeting if this intent has one (routine_service, emergency, commercial)
+        intent_greetings = self.playbook["scripts"].get("intent_greetings", {})
+        if self.intent in intent_greetings:
+            await self.session.say(intent_greetings[self.intent])
+            # Greeting already asked for name — LLM will wait for caller's response
+            # Step index stays at 0 (name collect); prompt instructs LLM not to re-ask
+            return
+
+        # No greeting — dispatch the first step and let the LLM speak it
         first_instruction = await self.executor._dispatch_current_step(self.session)
         if first_instruction:
             self.session.generate_reply(instructions=first_instruction)
