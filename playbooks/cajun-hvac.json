@@ -25,7 +25,17 @@
     "closing_booked": "You're all set! A technician will be there at {appointment_time}. Thank you for calling Cajun H-vac. Have a great day!",
     "closing_message": "I've taken your message and someone will get back to you shortly. Have a great day!",
     "closing_dispatched": "I've contacted our on-call technician. They'll be reaching out to you shortly at {phone}. Thank you for calling Cajun H-vac.",
-    "after_hours_greeting": "Thank you for calling Cajun H-vac. Our office is currently closed. If this is an emergency such as no heat, no cooling, or a gas leak, please let me know right away. Otherwise, I can take your information and have someone call you back during business hours."
+    "after_hours_greeting": "Thank you for calling Cajun H-vac. Our office is currently closed. If this is an emergency such as no heat, no cooling, or a gas leak, please let me know right away. Otherwise, I can take your information and have someone call you back during business hours.",
+    "transfer_messages": {
+      "routine_service": "Absolutely, let me connect you with our scheduling team.",
+      "emergency": "I understand, let me get you to our emergency team right away.",
+      "commercial": "Sure, let me connect you with our commercial services team."
+    },
+    "intent_greetings": {
+      "routine_service": "I can help you get that scheduled. Can I start with your full name — first and last?",
+      "emergency": "I'm going to get help out to you. First, can I get your full name?",
+      "commercial": "I can help with that. Can I get your full name — first and last?"
+    }
   },
   "intents": {
     "routine_service": {
