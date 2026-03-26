@@ -143,6 +143,7 @@ class IntentAgent(Agent):
     ):
         self.playbook = playbook
         self.intent = intent
+        self.pre_collected = pre_collected
         self.executor = StepExecutor(playbook, intent, pre_collected=pre_collected)
         self.executor.time_window = time_window
         self.executor.requested_intent = requested_intent
@@ -151,17 +152,29 @@ class IntentAgent(Agent):
         super().__init__(instructions=playbook["intent_prompts"][intent])
 
     async def on_enter(self) -> None:
-        # Speak intent greeting if this intent has one (routine_service, emergency, commercial)
-        intent_greetings = self.playbook["scripts"].get("intent_greetings", {})
-        if self.intent in intent_greetings:
-            await self.session.say(intent_greetings[self.intent])
-            # Greeting already asked for name — LLM will wait for caller's response
-            # Step index stays at 0 (name collect); prompt instructs LLM not to re-ask
-            return
+        is_escalation = bool(self.pre_collected)
 
-        # No greeting — dispatch the first step and let the LLM speak it
+        # Speak intent greeting only for non-escalation entries
+        if not is_escalation:
+            intent_greetings = self.playbook["scripts"].get("intent_greetings", {})
+            if self.intent in intent_greetings:
+                await self.session.say(intent_greetings[self.intent])
+                # Greeting already asked for name — LLM will wait for caller's response
+                # Step index stays at 0 (name collect); prompt instructs LLM not to re-ask
+                return
+
+        # Dispatch the current step (may be advanced past pre-collected steps)
         first_instruction = await self.executor._dispatch_current_step(self.session)
         if first_instruction:
+            if is_escalation:
+                collected_summary = ", ".join(
+                    f"{k} is {v}" for k, v in self.pre_collected.items()
+                )
+                first_instruction = (
+                    f"The caller has already provided: {collected_summary}. "
+                    "Do NOT re-ask for this information. Do NOT greet or introduce yourself. "
+                    f"Continue the conversation naturally. {first_instruction}"
+                )
             self.session.generate_reply(instructions=first_instruction)
 
     @function_tool()
@@ -188,11 +201,11 @@ class IntentAgent(Agent):
 
     @function_tool()
     async def escalate(self, context: RunContext, new_intent: str) -> tuple:
-        """Transfer the caller to a different intent when they ask for something outside this flow.
+        """Route the caller to a different intent when they ask for something outside this flow.
         For example, if during routine_service the caller says "actually I need to cancel."
 
         Args:
-            new_intent: The intent to transfer to (e.g. "cancellation", "emergency")
+            new_intent: The intent to route to (e.g. "cancellation", "emergency")
         """
         # Carry forward fields that are likely shared (name, phone)
         shared_fields = {}
@@ -203,6 +216,11 @@ class IntentAgent(Agent):
         # Store shared fields in userdata for the router to pass along
         self.session.userdata["pre_collected"] = shared_fields
         self.session.userdata["escalation_requested"] = new_intent
+
+        # Speak escalation acknowledgment before handoff — single-voice UX
+        await self.session.say(
+            "Of course, I can help with that.", allow_interruptions=False
+        )
 
         router = RouterAgent(
             playbook=self.playbook,
