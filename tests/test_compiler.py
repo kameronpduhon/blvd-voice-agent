@@ -387,29 +387,29 @@ def test_intent_prompt_emergency_has_contacts():
     assert "555-0199" in em_prompt
 
 
-# --- transfer_messages / intent_greetings validation ---
+# --- router_acknowledgments / intent_greetings validation ---
 
 
-def _pb_with_transfer_and_greetings():
-    """Helper: VALID_PLAYBOOK + routine_service transfer + greeting."""
+def _pb_with_ack_and_greetings():
+    """Helper: VALID_PLAYBOOK + routine_service acknowledgment + greeting."""
     pb = json.loads(json.dumps(VALID_PLAYBOOK))
-    pb["scripts"]["transfer_messages"] = {
-        "routine_service": "Let me connect you with scheduling."
+    pb["scripts"]["router_acknowledgments"] = {
+        "routine_service": "Absolutely, one moment."
     }
     pb["scripts"]["intent_greetings"] = {
-        "routine_service": "I can help you get that scheduled. What's your full name?"
+        "routine_service": "I'll just need a few details to get you on the schedule. What's your first and last name?"
     }
     return pb
 
 
-def test_transfer_and_greeting_valid_passes():
-    pb = _pb_with_transfer_and_greetings()
+def test_ack_and_greeting_valid_passes():
+    pb = _pb_with_ack_and_greetings()
     validate(pb)  # should not raise
 
 
-def test_transfer_message_unknown_intent_raises():
+def test_ack_unknown_intent_raises():
     pb = json.loads(json.dumps(VALID_PLAYBOOK))
-    pb["scripts"]["transfer_messages"] = {"nonexistent": "Hello"}
+    pb["scripts"]["router_acknowledgments"] = {"nonexistent": "Hello"}
     pb["scripts"]["intent_greetings"] = {"nonexistent": "Hi"}
     with pytest.raises(CompilerError, match=r"unknown intent.*nonexistent"):
         validate(pb)
@@ -417,7 +417,7 @@ def test_transfer_message_unknown_intent_raises():
 
 def test_greeting_unknown_intent_raises():
     pb = json.loads(json.dumps(VALID_PLAYBOOK))
-    pb["scripts"]["transfer_messages"] = {"routine_service": "Connecting..."}
+    pb["scripts"]["router_acknowledgments"] = {"routine_service": "One moment."}
     pb["scripts"]["intent_greetings"] = {
         "routine_service": "Hi",
         "nonexistent": "Hey",
@@ -426,28 +426,28 @@ def test_greeting_unknown_intent_raises():
         validate(pb)
 
 
-def test_transfer_without_matching_greeting_raises():
+def test_ack_without_matching_greeting_raises():
     pb = json.loads(json.dumps(VALID_PLAYBOOK))
-    pb["scripts"]["transfer_messages"] = {"routine_service": "Connecting..."}
+    pb["scripts"]["router_acknowledgments"] = {"routine_service": "One moment."}
     # No matching intent_greetings
     with pytest.raises(
-        CompilerError, match="transfer_messages but no intent_greetings"
+        CompilerError, match="router_acknowledgments but no intent_greetings"
     ):
         validate(pb)
 
 
-def test_greeting_without_matching_transfer_raises():
+def test_greeting_without_matching_ack_raises():
     pb = json.loads(json.dumps(VALID_PLAYBOOK))
     pb["scripts"]["intent_greetings"] = {"routine_service": "Hi there."}
-    # No matching transfer_messages
+    # No matching router_acknowledgments
     with pytest.raises(
-        CompilerError, match="intent_greetings but no transfer_messages"
+        CompilerError, match="intent_greetings but no router_acknowledgments"
     ):
         validate(pb)
 
 
-def test_no_transfer_or_greeting_passes():
-    """Playbook without transfer_messages or intent_greetings compiles fine."""
+def test_no_ack_or_greeting_passes():
+    """Playbook without router_acknowledgments or intent_greetings compiles fine."""
     validate(VALID_PLAYBOOK)  # should not raise
 
 
@@ -487,7 +487,7 @@ def test_router_prompt_excludes_fees():
 
 def test_intent_prompt_greeting_instruction_for_greeted_intent():
     """Intent prompt for greeted intent should include 'do not re-ask' instruction."""
-    pb = _pb_with_transfer_and_greetings()
+    pb = _pb_with_ack_and_greetings()
     result = compile_playbook(pb, "test.json")
     rs_prompt = result["intent_prompts"]["routine_service"]
     assert "greeting" in rs_prompt.lower()
@@ -496,23 +496,23 @@ def test_intent_prompt_greeting_instruction_for_greeted_intent():
 
 def test_intent_prompt_no_greeting_instruction_for_ungreeted_intent():
     """Intent prompt for non-greeted intent should NOT have greeting instruction."""
-    pb = _pb_with_transfer_and_greetings()
+    pb = _pb_with_ack_and_greetings()
     result = compile_playbook(pb, "test.json")
     fb_prompt = result["intent_prompts"]["_fallback"]
-    assert "greeting has already" not in fb_prompt.lower()
+    assert "already been asked" not in fb_prompt.lower()
 
 
-def test_compiled_output_includes_transfer_messages_in_scripts():
-    """Compiled output scripts should include transfer_messages."""
-    pb = _pb_with_transfer_and_greetings()
+def test_compiled_output_includes_router_acknowledgments_in_scripts():
+    """Compiled output scripts should include router_acknowledgments."""
+    pb = _pb_with_ack_and_greetings()
     result = compile_playbook(pb, "test.json")
-    assert "transfer_messages" in result["scripts"]
-    assert "routine_service" in result["scripts"]["transfer_messages"]
+    assert "router_acknowledgments" in result["scripts"]
+    assert "routine_service" in result["scripts"]["router_acknowledgments"]
 
 
 def test_compiled_output_includes_intent_greetings_in_scripts():
     """Compiled output scripts should include intent_greetings."""
-    pb = _pb_with_transfer_and_greetings()
+    pb = _pb_with_ack_and_greetings()
     result = compile_playbook(pb, "test.json")
     assert "intent_greetings" in result["scripts"]
     assert "routine_service" in result["scripts"]["intent_greetings"]

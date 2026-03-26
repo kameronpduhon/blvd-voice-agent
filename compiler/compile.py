@@ -44,14 +44,14 @@ def validate(playbook: dict) -> None:
             "Script 'after_hours_greeting' is defined but intent '_after_hours' is missing — add the intent or remove the script"
         )
 
-    # Transfer messages and intent greetings must reference valid intents and appear in matching pairs
-    transfer_messages = playbook.get("scripts", {}).get("transfer_messages", {})
+    # Router acknowledgments and intent greetings must reference valid intents and appear in matching pairs
+    router_acknowledgments = playbook.get("scripts", {}).get("router_acknowledgments", {})
     intent_greetings = playbook.get("scripts", {}).get("intent_greetings", {})
 
-    for intent_name in transfer_messages:
+    for intent_name in router_acknowledgments:
         if intent_name not in playbook["intents"]:
             raise CompilerError(
-                f"scripts.transfer_messages references unknown intent: '{intent_name}'"
+                f"scripts.router_acknowledgments references unknown intent: '{intent_name}'"
             )
     for intent_name in intent_greetings:
         if intent_name not in playbook["intents"]:
@@ -59,16 +59,16 @@ def validate(playbook: dict) -> None:
                 f"scripts.intent_greetings references unknown intent: '{intent_name}'"
             )
 
-    # Transfer messages and intent greetings should appear in matching pairs
-    transfer_only = set(transfer_messages.keys()) - set(intent_greetings.keys())
-    greeting_only = set(intent_greetings.keys()) - set(transfer_messages.keys())
-    if transfer_only:
+    # Router acknowledgments and intent greetings should appear in matching pairs
+    ack_only = set(router_acknowledgments.keys()) - set(intent_greetings.keys())
+    greeting_only = set(intent_greetings.keys()) - set(router_acknowledgments.keys())
+    if ack_only:
         raise CompilerError(
-            f"Intents have transfer_messages but no intent_greetings: {', '.join(sorted(transfer_only))}"
+            f"Intents have router_acknowledgments but no intent_greetings: {', '.join(sorted(ack_only))}"
         )
     if greeting_only:
         raise CompilerError(
-            f"Intents have intent_greetings but no transfer_messages: {', '.join(sorted(greeting_only))}"
+            f"Intents have intent_greetings but no router_acknowledgments: {', '.join(sorted(greeting_only))}"
         )
 
     for intent_name, intent in playbook["intents"].items():
@@ -268,7 +268,7 @@ def build_intent_prompt(playbook: dict, intent_name: str) -> str:
     if intent_name in intent_greetings:
         greeting_instruction = """
 # Greeting
-The greeting has already introduced you and asked for the caller's name. Wait for them to respond. Do NOT re-ask for the name. When they give their name, call update_field with the name field.
+The caller has already been asked for their name. Wait for them to respond. Do NOT re-ask for the name. When they give their name, call update_field with the name field.
 """
 
     return f"""You are a specialist agent for {company["name"]} in {company.get("address", "")} handling: {intent.get("label", intent_name)}.

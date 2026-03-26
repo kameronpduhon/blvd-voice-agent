@@ -124,11 +124,11 @@ class RouterAgent(Agent):
         self.session.userdata["requested_intent"] = requested_intent
         self.session.userdata["time_window"] = self.time_window
 
-        # Speak transfer announcement if this intent has one — must complete before handoff
-        transfer_messages = self.playbook["scripts"].get("transfer_messages", {})
-        if actual_intent in transfer_messages:
+        # Speak router acknowledgment if this intent has one — must complete before handoff
+        acknowledgments = self.playbook["scripts"].get("router_acknowledgments", {})
+        if actual_intent in acknowledgments:
             await self.session.say(
-                transfer_messages[actual_intent], allow_interruptions=False
+                acknowledgments[actual_intent], allow_interruptions=False
             )
 
         # Read pre_collected from userdata (set by escalation)
