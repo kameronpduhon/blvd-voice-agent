@@ -271,6 +271,11 @@ def build_intent_prompt(playbook: dict, intent_name: str) -> str:
 # Greeting
 The caller has already been asked for their name. Wait for them to respond. Do NOT re-ask for the name. When they give their name, call update_field with the name field.
 """
+    else:
+        greeting_instruction = """
+# Handoff transition
+DO NOT greet the caller. DO NOT say "hello", "thank you for calling", or introduce yourself by name. The caller is already on the line and has been speaking with the receptionist. Pick up directly from where the conversation left off and begin immediately with the first step.
+"""
 
     return f"""You are a specialist agent for {company["name"]} in {company.get("address", "")} handling: {intent.get("label", intent_name)}.
 
