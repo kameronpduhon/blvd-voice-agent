@@ -502,6 +502,16 @@ def test_intent_prompt_no_greeting_instruction_for_ungreeted_intent():
     assert "already been asked" not in fb_prompt.lower()
 
 
+def test_intent_prompt_no_greeting_block_for_ungreeted_intent():
+    """Non-greeted intent prompt should have explicit no-greeting handoff block."""
+    pb = _pb_with_ack_and_greetings()
+    result = compile_playbook(pb, "test.json")
+    fb_prompt = result["intent_prompts"]["_fallback"]
+    assert "DO NOT greet the caller" in fb_prompt
+    assert "DO NOT say" in fb_prompt
+    assert "introduce yourself" in fb_prompt
+
+
 def test_compiled_output_includes_router_acknowledgments_in_scripts():
     """Compiled output scripts should include router_acknowledgments."""
     pb = _pb_with_ack_and_greetings()
