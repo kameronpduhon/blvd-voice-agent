@@ -207,6 +207,11 @@ class IntentAgent(Agent):
         Args:
             new_intent: The intent to route to (e.g. "cancellation", "emergency")
         """
+        # Validate intent name against known playbook intents
+        valid_intents = [k for k in self.playbook["intents"] if not k.startswith("_")]
+        if new_intent not in self.playbook["intents"]:
+            return f"Invalid intent '{new_intent}'. Valid intents are: {', '.join(valid_intents)}"
+
         # Carry forward fields that are likely shared (name, phone)
         shared_fields = {}
         for field in ["name", "phone"]:

@@ -199,6 +199,9 @@ If the caller's need does not match any intent, use route_to_intent("_fallback")
 # After-hours awareness
 If the caller describes an emergency, route to emergency regardless of time. For all other needs, route normally — the system handles after-hours logic.
 
+# Call closing
+If the caller signals they are done — "no", "that's it", "thank you", "bye", "goodbye", "no thanks", "I'm all set", "I'm good", or similar closing phrases — DO NOT call route_to_intent. DO NOT call any tool. Simply say a warm farewell such as "Thanks for calling {company["name"].replace("HVAC", "H-vac")}, have a great day!" and stop.
+
 # Guardrails
 - Stay on topic. You handle calls for {company["name"]} only.
 - DO NOT answer questions yourself EXCEPT for simple informational questions (hours, address, phone number). For anything requiring a service, route to the appropriate intent.
@@ -215,6 +218,10 @@ def build_intent_prompt(playbook: dict, intent_name: str) -> str:
     # Collect valid field names for this intent
     intent_fields = [s["field"] for s in intent["steps"] if s["type"] == "collect"]
     field_list = ", ".join(intent_fields) if intent_fields else "(none)"
+
+    # Collect valid intent names for escalation (non-underscore intents only)
+    valid_escalate_intents = [k for k in intents if not k.startswith("_")]
+    escalate_list = ", ".join(valid_escalate_intents)
 
     office_hours = format_hours(hours["office"])
     on_call_str = ""
@@ -299,6 +306,7 @@ You have two tools: update_field and escalate.
 - When a tool result contains "[call_ended]", the call is over. Speak ONLY the required closing text from the tool result. Do NOT speak after "[call_ended]". Do NOT generate farewell messages, additional commentary, or any other dialogue.
 
 ## escalate
+- Valid intent names: {escalate_list}. ONLY use these exact names with escalate. DO NOT invent names like "emergency_service" or "cancel".
 - If the caller asks for something outside this intent's scope (e.g., they say "actually I need to cancel" during a routine service booking), call the escalate tool with the new intent name.
 - After calling escalate, DO NOT speak. Do NOT say "please hold", "one moment", "transferring", "let me connect you", or anything else. The system handles the transition silently.
 

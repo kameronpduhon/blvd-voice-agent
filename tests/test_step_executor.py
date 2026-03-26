@@ -416,6 +416,26 @@ async def test_update_field_rejects_placeholder():
     assert "placeholder" in result.lower() or "real" in result.lower()
 
 
+@pytest.mark.asyncio
+async def test_update_field_rejects_empty_string():
+    """KAM-19: Empty string from preemptive generation must be rejected."""
+    executor = StepExecutor(MINIMAL_PLAYBOOK, "routine_service")
+    session = make_mock_session()
+    result = await executor.update_field("name", "", session)
+    assert "real value" in result.lower()
+    assert executor.current_step_index == 0  # did not advance
+
+
+@pytest.mark.asyncio
+async def test_update_field_rejects_whitespace_only():
+    """KAM-19: Whitespace-only string must also be rejected."""
+    executor = StepExecutor(MINIMAL_PLAYBOOK, "routine_service")
+    session = make_mock_session()
+    result = await executor.update_field("name", "   ", session)
+    assert "real value" in result.lower()
+    assert executor.current_step_index == 0
+
+
 # --- deliver_speak tests ---
 
 

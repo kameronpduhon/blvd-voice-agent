@@ -85,6 +85,9 @@ class StepExecutor:
                 return f"Updated {field_name}. {step['prompt']}"
             return f"Expected field '{step['field']}', got '{field_name}'. Please provide {step['field']}."
 
+        if not value.strip():
+            return f"Please provide a real value for {field_name}."
+
         if value.strip().lower() in PLACEHOLDER_PATTERNS:
             return f"Please provide a real value for {field_name}, not a placeholder."
 

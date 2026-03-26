@@ -572,3 +572,64 @@ def test_compile_appointment_time_instruction():
     prompt = result["intent_prompts"]["routine_service"]
     assert "appointment time" in prompt.lower()
     assert "day AND" in prompt or "day and" in prompt.lower()
+
+
+# --- KAM-21: call closing instruction ---
+
+
+def test_router_prompt_includes_call_closing_instruction():
+    """KAM-21: Router prompt must instruct LLM to say farewell on caller goodbye."""
+    result = compile_playbook(VALID_PLAYBOOK, "test.json")
+    prompt = result["router_prompt"]
+    assert "call closing" in prompt.lower() or "Call closing" in prompt
+    assert "DO NOT call route_to_intent" in prompt
+    assert "farewell" in prompt.lower()
+    assert "goodbye" in prompt.lower() or "bye" in prompt.lower()
+
+
+# --- KAM-20: escalate intent list in prompt ---
+
+
+def test_intent_prompt_lists_valid_escalate_intents():
+    """KAM-20: Intent prompt must list valid intent names for escalate tool."""
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    pb["intents"]["emergency"] = {
+        "label": "Emergency Service",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+        ],
+    }
+    pb["intents"]["cancellation"] = {
+        "label": "Cancel Appointment",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+        ],
+    }
+    result = compile_playbook(pb, "test.json")
+    rs_prompt = result["intent_prompts"]["routine_service"]
+    # Valid non-underscore intents must appear in escalate section
+    assert "emergency" in rs_prompt
+    assert "cancellation" in rs_prompt
+    assert "routine_service" in rs_prompt
+    # Underscore intents must NOT appear in the escalate valid list
+    assert "DO NOT invent names" in rs_prompt
+
+
+def test_intent_prompt_escalate_excludes_underscore_intents():
+    """KAM-20: Escalate valid list must not include _fallback or _after_hours."""
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    pb["scripts"]["after_hours_greeting"] = "Office is closed."
+    pb["intents"]["_after_hours"] = {
+        "label": "After Hours",
+        "steps": [
+            {"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"},
+        ],
+    }
+    result = compile_playbook(pb, "test.json")
+    rs_prompt = result["intent_prompts"]["routine_service"]
+    # Extract just the escalate section
+    escalate_start = rs_prompt.index("## escalate")
+    escalate_end = rs_prompt.index("#", escalate_start + 3)
+    escalate_section = rs_prompt[escalate_start:escalate_end]
+    assert "_fallback" not in escalate_section
+    assert "_after_hours" not in escalate_section
