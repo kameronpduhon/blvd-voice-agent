@@ -182,7 +182,7 @@ def test_system_prompt_includes_greeting():
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
     prompt = result["system_prompt"]
     assert "Hello!" in prompt
-    assert "TIME_WINDOW_PLACEHOLDER" in prompt
+    assert "{time_window}" in prompt
 
 
 def test_system_prompt_includes_after_hours_greeting():

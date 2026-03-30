@@ -20,7 +20,7 @@ from livekit.agents import (
     function_tool,
     room_io,
 )
-from livekit.plugins import google, noise_cancellation, silero
+from livekit.plugins import google, noise_cancellation
 
 from src.playbook import load_playbook
 from src.post_call import post_summary_from_userdata
@@ -39,7 +39,7 @@ class AcmeHVACAgent(Agent):
         self.executor.time_window = time_window
 
         # Inject time_window into system prompt for greeting selection
-        prompt = playbook["system_prompt"].replace("TIME_WINDOW_PLACEHOLDER", time_window)
+        prompt = playbook["system_prompt"].replace("{time_window}", time_window)
         super().__init__(instructions=prompt)
 
     @function_tool()
@@ -93,13 +93,6 @@ class AcmeHVACAgent(Agent):
 server = AgentServer()
 
 
-def prewarm(proc):
-    proc.userdata["vad"] = silero.VAD.load()
-
-
-server.setup_fnc = prewarm
-
-
 @server.rtc_session(agent_name="acme-hvac-agent")
 async def entrypoint(ctx: JobContext):
     ctx.log_context_fields = {"room": ctx.room.name}
@@ -111,10 +104,9 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(
         llm=google.realtime.RealtimeModel(
             model="gemini-2.5-flash-native-audio-preview-12-2025",
-            voice="Kore",
+            voice="Puck",
             temperature=0.8,
         ),
-        vad=ctx.proc.userdata["vad"],
         userdata={
             "intent": None,
             "requested_intent": None,

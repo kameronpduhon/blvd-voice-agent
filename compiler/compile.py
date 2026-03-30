@@ -144,7 +144,7 @@ Office hours greeting: "{greeting}"
     if after_hours_greeting:
         greeting_section += f'After-hours greeting: "{after_hours_greeting}"\n'
     greeting_section += """
-The current time window is: TIME_WINDOW_PLACEHOLDER. Use the office hours greeting when the time window is "office_hours". Otherwise use the after-hours greeting."""
+The current time window is: {time_window}. Use the office hours greeting when the time window is "office_hours". Otherwise use the after-hours greeting."""
 
     # --- 3. INTENT IDENTIFICATION ---
     intent_lines = []
