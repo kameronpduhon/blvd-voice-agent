@@ -20,22 +20,18 @@
   "contacts": {
     "oncall_tech": { "name": "Mike", "phone": "(337) 555-0199" }
   },
+  "voice": {
+    "name": "Julie",
+    "personality": "warm, professional, patient",
+    "pace": "natural, conversational",
+    "style": "friendly Southern receptionist"
+  },
   "scripts": {
     "greeting": "Thank you for calling Acme H-vac, how can I help you today?",
     "closing_booked": "You're all set! A technician will be there at {appointment_time}. Thank you for calling Acme H-vac. Have a great day!",
     "closing_message": "I've taken your message and someone will get back to you shortly. Have a great day!",
     "closing_dispatched": "I've contacted our on-call technician. They'll be reaching out to you shortly at {phone}. Thank you for calling Acme H-vac.",
-    "after_hours_greeting": "Thank you for calling Acme H-vac. Our office is currently closed. If this is an emergency such as no heat, no cooling, or a gas leak, please let me know right away. Otherwise, I can take your information and have someone call you back during business hours.",
-    "router_acknowledgments": {
-      "routine_service": "Absolutely, one moment.",
-      "emergency": "Okay, let me get on that right away.",
-      "commercial": "Sure, one moment."
-    },
-    "intent_greetings": {
-      "routine_service": "I'll just need a few details to get you on the schedule. What's your first and last name?",
-      "emergency": "I need to get a few details to get a technician out to you. What's your first and last name?",
-      "commercial": "I'll need some information to get that set up. What's your first and last name?"
-    }
+    "after_hours_greeting": "Thank you for calling Acme H-vac. Our office is currently closed. If this is an emergency such as no heat, no cooling, or a gas leak, please let me know right away. Otherwise, I can take your information and have someone call you back during business hours."
   },
   "intents": {
     "routine_service": {

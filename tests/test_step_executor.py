@@ -6,7 +6,7 @@ from src import actions
 from src.step_executor import StepExecutor
 
 
-# Register a test version of check_fee_approved for the consecutive actions test
+# Register test action stubs
 async def _test_check_fee_approved(executor, session):
     if executor.collected.get("fee_approved", "").lower() in ("no", "n", "decline"):
         executor.outcome = "declined"
@@ -364,279 +364,6 @@ PLAYBOOK_CONSECUTIVE_ACTIONS = {
     "scripts": {"closing_booked": "Done.", "closing_message": "Done."},
 }
 
-
-# --- constructor and first step tests ---
-
-
-@pytest.mark.asyncio
-async def test_constructor_sets_intent_and_dispatches_first_collect():
-    executor = StepExecutor(MINIMAL_PLAYBOOK, "routine_service")
-    session = make_mock_session()
-    result = await executor._dispatch_current_step(session)
-    assert "Ask for name." in result
-    assert executor.current_intent == "routine_service"
-    assert executor.current_step_index == 0
-
-
-@pytest.mark.asyncio
-async def test_constructor_with_speak_first_step():
-    executor = StepExecutor(PLAYBOOK_WITH_SPEAK, "test_intent")
-    session = make_mock_session()
-    result = await executor._dispatch_current_step(session)
-    assert 'Say EXACTLY: "Fee is $89."' in result
-    assert "Confirm fee." in result
-    assert executor.current_step_index == 1
-
-
-# --- update_field tests ---
-
-
-@pytest.mark.asyncio
-async def test_update_field_stores_value_and_advances():
-    executor = StepExecutor(MINIMAL_PLAYBOOK, "routine_service")
-    session = make_mock_session()
-    result = await executor.update_field("name", "Eric Tails", session)
-    assert executor.collected["name"] == "Eric Tails"
-    assert result == "Ask for phone."
-
-
-@pytest.mark.asyncio
-async def test_update_field_rejects_wrong_field():
-    executor = StepExecutor(MINIMAL_PLAYBOOK, "routine_service")
-    session = make_mock_session()
-    result = await executor.update_field("phone", "555-1234", session)
-    assert "name" in result.lower()
-
-
-@pytest.mark.asyncio
-async def test_update_field_rejects_placeholder():
-    executor = StepExecutor(MINIMAL_PLAYBOOK, "routine_service")
-    session = make_mock_session()
-    result = await executor.update_field("name", "[Name]", session)
-    assert "placeholder" in result.lower() or "real" in result.lower()
-
-
-@pytest.mark.asyncio
-async def test_update_field_rejects_empty_string():
-    """KAM-19: Empty string from preemptive generation must be rejected."""
-    executor = StepExecutor(MINIMAL_PLAYBOOK, "routine_service")
-    session = make_mock_session()
-    result = await executor.update_field("name", "", session)
-    assert "real value" in result.lower()
-    assert executor.current_step_index == 0  # did not advance
-
-
-@pytest.mark.asyncio
-async def test_update_field_rejects_whitespace_only():
-    """KAM-19: Whitespace-only string must also be rejected."""
-    executor = StepExecutor(MINIMAL_PLAYBOOK, "routine_service")
-    session = make_mock_session()
-    result = await executor.update_field("name", "   ", session)
-    assert "real value" in result.lower()
-    assert executor.current_step_index == 0
-
-
-# --- deliver_speak tests ---
-
-
-@pytest.mark.asyncio
-async def test_verbatim_speak_with_collect_lookahead():
-    executor = StepExecutor(PLAYBOOK_WITH_SPEAK, "test_intent")
-    session = make_mock_session()
-    result = await executor._dispatch_current_step(session)
-    session.say.assert_not_called()
-    assert 'Say EXACTLY: "Fee is $89."' in result
-    assert "Confirm fee." in result
-    assert executor.current_step_index == 1
-
-
-@pytest.mark.asyncio
-async def test_guided_speak_with_collect_lookahead():
-    executor = StepExecutor(PLAYBOOK_GUIDED_SPEAK, "test_intent")
-    session = make_mock_session()
-    result = await executor._dispatch_current_step(session)
-    session.say.assert_not_called()
-    assert "Greet the caller warmly." in result
-    assert "Ask for name." in result
-    assert executor.current_step_index == 1
-
-
-# --- edge cases ---
-
-
-@pytest.mark.asyncio
-async def test_verbatim_speak_no_lookahead():
-    """Verbatim speak with no following collect returns Say EXACTLY."""
-    executor = StepExecutor(PLAYBOOK_VERBATIM_SPEAK_ALONE, "test_intent")
-    session = make_mock_session()
-    result = await executor._dispatch_current_step(session)
-    session.say.assert_not_called()
-    assert 'Say EXACTLY: "Goodbye."' in result
-
-
-@pytest.mark.asyncio
-async def test_guided_speak_no_lookahead():
-    """Guided speak without following collect returns prompt without Say EXACTLY."""
-    executor = StepExecutor(PLAYBOOK_GUIDED_SPEAK_ALONE, "test_intent")
-    session = make_mock_session()
-    result = await executor._dispatch_current_step(session)
-    session.say.assert_not_called()
-    assert "Let the caller know you'll take a message." in result
-    assert "Say EXACTLY" not in result
-
-
-@pytest.mark.asyncio
-async def test_guided_speak_with_collect_no_say_exactly():
-    """Guided speak with collect lookahead should NOT include Say EXACTLY."""
-    executor = StepExecutor(PLAYBOOK_GUIDED_SPEAK, "test_intent")
-    session = make_mock_session()
-    result = await executor._dispatch_current_step(session)
-    assert "Say EXACTLY" not in result
-    assert "Greet the caller warmly." in result
-    assert "Ask for name." in result
-
-
-@pytest.mark.asyncio
-async def test_advance_past_end_returns_call_ended():
-    """advance() past the last step returns [call_ended]."""
-    executor = StepExecutor(MINIMAL_PLAYBOOK, "routine_service")
-    session = make_mock_session()
-    await executor.update_field("name", "Eric", session)
-    result = await executor.update_field("phone", "555-1234", session)
-    assert result == "[call_ended]"
-
-
-@pytest.mark.asyncio
-async def test_consecutive_actions_recurse_correctly():
-    """Consecutive action steps recurse through advance().
-    update_field stores "yes" -> advance -> check_fee_approved (action) sees "yes" -> advance -> collect name
-    """
-    executor = StepExecutor(PLAYBOOK_CONSECUTIVE_ACTIONS, "test_intent")
-    session = make_mock_session()
-    result = await executor.update_field("fee_approved", "yes", session)
-    assert result == "Ask for name."
-
-
-@pytest.mark.asyncio
-async def test_emergency_full_flow():
-    """Emergency: collect name/phone/address -> confirm -> dispatch."""
-    executor = StepExecutor(PLAYBOOK_EMERGENCY, "emergency")
-    session = make_mock_session()
-
-    result = await executor._dispatch_current_step(session)
-    assert "Ask for name." in result
-
-    result = await executor.update_field("name", "Eric Tails", session)
-    assert result == "Ask for phone."
-
-    result = await executor.update_field("phone", "337-232-2341", session)
-    assert result == "Ask for address."
-
-    result = await executor.update_field("address", "456 Cypress St 70502", session)
-    assert result == "Confirm dispatch."
-
-    result = await executor.update_field("emergency_confirmed", "yes", session)
-    assert "[call_ended]" in result
-    assert executor.outcome == "dispatched"
-
-
-@pytest.mark.asyncio
-async def test_emergency_confirmed_no_takes_message():
-    """When caller says no at confirmation, take a message and end the call."""
-    executor = StepExecutor(PLAYBOOK_EMERGENCY, "emergency")
-    session = make_mock_session()
-
-    await executor.update_field("name", "Eric Tails", session)
-    await executor.update_field("phone", "337-232-2341", session)
-    await executor.update_field("address", "456 Cypress St 70502", session)
-
-    result = await executor.update_field("emergency_confirmed", "no", session)
-    assert "[call_ended]" in result
-    assert executor.outcome == "message_taken"
-
-
-@pytest.mark.asyncio
-async def test_cancellation_full_flow():
-    """Cancellation: collect name/phone/reason -> take_message."""
-    executor = StepExecutor(PLAYBOOK_CANCELLATION, "cancellation")
-    session = make_mock_session()
-
-    result = await executor._dispatch_current_step(session)
-    assert "Ask for name." in result
-
-    result = await executor.update_field("name", "Eric Tails", session)
-    assert result == "Ask for phone."
-
-    result = await executor.update_field("phone", "337-232-2341", session)
-    assert result == "Ask reason."
-
-    result = await executor.update_field(
-        "cancellation_reason", "Changed my mind", session
-    )
-    assert "[call_ended]" in result
-    assert executor.outcome == "message_taken"
-
-
-@pytest.mark.asyncio
-async def test_warranty_speak_then_collect():
-    """Warranty intent: speak verbatim warranty text, then collect name (lookahead merge)."""
-    executor = StepExecutor(PLAYBOOK_WARRANTY, "warranty")
-    session = make_mock_session()
-
-    result = await executor._dispatch_current_step(session)
-    assert 'Say EXACTLY: "All work has a one-year warranty."' in result
-    assert "Ask for name." in result
-    assert executor.current_step_index == 1  # Lookahead advanced past speak
-
-
-# --- pre_collected tests ---
-
-
-@pytest.mark.asyncio
-async def test_pre_collected_skips_matching_steps():
-    """Pre-collected fields skip corresponding collect steps at the start."""
-    executor = StepExecutor(
-        MINIMAL_PLAYBOOK, "routine_service", pre_collected={"name": "Eric Tails"}
-    )
-    session = make_mock_session()
-    assert executor.current_step_index == 1
-    assert executor.collected["name"] == "Eric Tails"
-    result = await executor._dispatch_current_step(session)
-    assert result == "Ask for phone."
-
-
-@pytest.mark.asyncio
-async def test_pre_collected_skips_multiple_steps():
-    """Pre-collected name and phone skips both collect steps."""
-    executor = StepExecutor(
-        MINIMAL_PLAYBOOK,
-        "routine_service",
-        pre_collected={"name": "Eric Tails", "phone": "555-1234"},
-    )
-    assert executor.current_step_index == 2
-    assert executor.collected["name"] == "Eric Tails"
-    assert executor.collected["phone"] == "555-1234"
-
-
-@pytest.mark.asyncio
-async def test_pre_collected_only_skips_consecutive_from_start():
-    """Pre-collected stops at the first non-matching step."""
-    # phone is step 1, but name (step 0) is not pre-collected
-    executor = StepExecutor(
-        MINIMAL_PLAYBOOK, "routine_service", pre_collected={"phone": "555-1234"}
-    )
-    # Should NOT skip step 0 (name) even though phone is pre-collected
-    assert executor.current_step_index == 0
-
-
-@pytest.mark.asyncio
-async def test_pre_collected_none_starts_at_zero():
-    """No pre_collected starts at step 0."""
-    executor = StepExecutor(MINIMAL_PLAYBOOK, "routine_service")
-    assert executor.current_step_index == 0
-    assert executor.collected == {}
-
-
 PLAYBOOK_WITH_APPOINTMENT = {
     "intents": {
         "routine_service": {
@@ -671,7 +398,6 @@ PLAYBOOK_WITH_APPOINTMENT = {
     "service_areas": [],
     "scripts": {},
 }
-
 
 PLAYBOOK_WITH_AFTER_HOURS = {
     "intents": {
@@ -769,14 +495,420 @@ PLAYBOOK_WITH_AFTER_HOURS = {
 }
 
 
+# --- set_intent tests ---
+
+
+def test_set_intent_returns_first_step():
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    result = executor.set_intent("routine_service", session)
+    assert "Ask for name." in result
+    assert executor.current_intent == "routine_service"
+    assert executor.current_step_index == 0
+
+
+def test_set_intent_with_speak_first_step():
+    executor = StepExecutor(PLAYBOOK_WITH_SPEAK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    result = executor.set_intent("test_intent", session)
+    assert 'Say EXACTLY: "Fee is $89."' in result
+    assert "Confirm fee." in result
+    assert executor.current_step_index == 1
+
+
+def test_set_intent_unknown_falls_back():
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    result = executor.set_intent("nonexistent", session)
+    assert executor.current_intent == "_fallback"
+    assert "Ask for name." in result
+
+
+def test_set_intent_off_hours_redirects_to_after_hours():
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "after_hours"
+    session = make_mock_session()
+    result = executor.set_intent("routine_service", session)
+    assert executor.current_intent == "_after_hours"
+    assert executor.requested_intent == "routine_service"
+    assert "Ask for name." in result
+
+
+def test_set_intent_emergency_bypasses_off_hours():
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "after_hours"
+    session = make_mock_session()
+    result = executor.set_intent("emergency", session)
+    assert executor.current_intent == "emergency"
+    assert executor.requested_intent is None
+    assert "Ask for name." in result
+
+
+def test_set_intent_on_call_redirects_non_emergency():
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "on_call"
+    session = make_mock_session()
+    executor.set_intent("billing", session)
+    assert executor.current_intent == "_after_hours"
+    assert executor.requested_intent == "billing"
+
+
+def test_set_intent_office_hours_no_redirect():
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    assert executor.current_intent == "routine_service"
+    assert executor.requested_intent is None
+
+
+def test_set_intent_clears_requested_intent_when_no_redirect():
+    """requested_intent is explicitly None when no redirect happened."""
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    assert executor.requested_intent is None
+
+
+# --- idle state (no intent) tests ---
+
+
+@pytest.mark.asyncio
+async def test_update_field_before_set_intent_returns_error():
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    session = make_mock_session()
+    result = await executor.update_field("name", "Eric Tails", session)
+    assert "No intent" in result or "set_intent" in result
+
+
+def test_current_steps_empty_when_no_intent():
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    assert executor.current_steps == []
+
+
+# --- switch_intent tests ---
+
+
+def test_switch_intent_carries_shared_fields():
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    executor.collected["name"] = "Eric Tails"
+    executor.collected["phone"] = "337-232-2341"
+
+    result = executor.switch_intent("cancellation", session)
+    assert "Of course" in result
+    assert executor.current_intent == "cancellation"
+    assert executor.collected["name"] == "Eric Tails"
+    assert executor.collected["phone"] == "337-232-2341"
+
+
+def test_switch_intent_skips_pre_collected_steps():
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    executor.collected["name"] = "Eric Tails"
+
+    executor.switch_intent("cancellation", session)
+    # cancellation steps: name → (skipped) → action take_message
+    # With only name collected, should skip name step (index 0) → land on next uncollected
+    assert executor.collected["name"] == "Eric Tails"
+    assert executor.current_step_index > 0
+
+
+def test_switch_intent_invalid_returns_error():
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+
+    result = executor.switch_intent("nonexistent", session)
+    assert "Invalid intent" in result
+    assert "routine_service" in result  # valid intents listed
+
+
+def test_switch_intent_off_hours_redirects():
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "after_hours"
+    session = make_mock_session()
+    executor.set_intent("emergency", session)
+    executor.collected["name"] = "Eric Tails"
+    executor.collected["phone"] = "337-232-2341"
+
+    executor.switch_intent("cancellation", session)
+    assert executor.current_intent == "_after_hours"
+    assert executor.requested_intent == "cancellation"
+
+
+def test_switch_intent_resets_outcome():
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    executor.outcome = "booked"
+
+    executor.switch_intent("cancellation", session)
+    assert executor.outcome is None
+
+
+def test_switch_intent_drops_non_shared_fields():
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    executor.collected["name"] = "Eric Tails"
+    executor.collected["phone"] = "337-232-2341"
+    executor.collected["address"] = "123 Main St 70502"
+
+    executor.switch_intent("cancellation", session)
+    assert "address" not in executor.collected
+    assert "name" in executor.collected
+    assert "phone" in executor.collected
+
+
+def test_switch_intent_multiple_times():
+    """switch_intent can be called more than once per call."""
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    executor.collected["name"] = "Eric Tails"
+
+    executor.switch_intent("cancellation", session)
+    assert executor.current_intent == "cancellation"
+
+    executor.switch_intent("billing", session)
+    assert executor.current_intent == "billing"
+    assert executor.collected["name"] == "Eric Tails"
+
+
+# --- update_field tests (with set_intent) ---
+
+
+@pytest.mark.asyncio
+async def test_update_field_stores_value_and_advances():
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    result = await executor.update_field("name", "Eric Tails", session)
+    assert executor.collected["name"] == "Eric Tails"
+    assert result == "Ask for phone."
+
+
+@pytest.mark.asyncio
+async def test_update_field_rejects_wrong_field():
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    result = await executor.update_field("phone", "555-1234", session)
+    assert "name" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_update_field_rejects_placeholder():
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    result = await executor.update_field("name", "[Name]", session)
+    assert "placeholder" in result.lower() or "real" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_update_field_rejects_empty_string():
+    """KAM-19: Empty string from preemptive generation must be rejected."""
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    result = await executor.update_field("name", "", session)
+    assert "real value" in result.lower()
+    assert executor.current_step_index == 0
+
+
+@pytest.mark.asyncio
+async def test_update_field_rejects_whitespace_only():
+    """KAM-19: Whitespace-only string must also be rejected."""
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    result = await executor.update_field("name", "   ", session)
+    assert "real value" in result.lower()
+    assert executor.current_step_index == 0
+
+
+# --- deliver_speak tests ---
+
+
+@pytest.mark.asyncio
+async def test_verbatim_speak_with_collect_lookahead():
+    executor = StepExecutor(PLAYBOOK_WITH_SPEAK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("test_intent", session)
+    # set_intent already dispatched first step and advanced index for speak+collect merge
+    assert executor.current_step_index == 1
+
+
+@pytest.mark.asyncio
+async def test_guided_speak_with_collect_lookahead():
+    executor = StepExecutor(PLAYBOOK_GUIDED_SPEAK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    result = executor.set_intent("test_intent", session)
+    assert "Greet the caller warmly." in result
+    assert "Ask for name." in result
+    assert executor.current_step_index == 1
+
+
+# --- edge cases ---
+
+
+def test_verbatim_speak_no_lookahead():
+    """Verbatim speak with no following collect returns Say EXACTLY."""
+    executor = StepExecutor(PLAYBOOK_VERBATIM_SPEAK_ALONE)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    result = executor.set_intent("test_intent", session)
+    assert 'Say EXACTLY: "Goodbye."' in result
+
+
+def test_guided_speak_no_lookahead():
+    """Guided speak without following collect returns prompt without Say EXACTLY."""
+    executor = StepExecutor(PLAYBOOK_GUIDED_SPEAK_ALONE)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    result = executor.set_intent("test_intent", session)
+    assert "Let the caller know you'll take a message." in result
+    assert "Say EXACTLY" not in result
+
+
+def test_guided_speak_with_collect_no_say_exactly():
+    """Guided speak with collect lookahead should NOT include Say EXACTLY."""
+    executor = StepExecutor(PLAYBOOK_GUIDED_SPEAK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    result = executor.set_intent("test_intent", session)
+    assert "Say EXACTLY" not in result
+    assert "Greet the caller warmly." in result
+    assert "Ask for name." in result
+
+
+@pytest.mark.asyncio
+async def test_advance_past_end_returns_call_ended():
+    """advance() past the last step returns [call_ended]."""
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    await executor.update_field("name", "Eric", session)
+    result = await executor.update_field("phone", "555-1234", session)
+    assert result == "[call_ended]"
+
+
+@pytest.mark.asyncio
+async def test_consecutive_actions_recurse_correctly():
+    """Consecutive action steps recurse through advance()."""
+    executor = StepExecutor(PLAYBOOK_CONSECUTIVE_ACTIONS)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("test_intent", session)
+    result = await executor.update_field("fee_approved", "yes", session)
+    assert result == "Ask for name."
+
+
+@pytest.mark.asyncio
+async def test_emergency_full_flow():
+    """Emergency: collect name/phone/address -> confirm -> dispatch."""
+    executor = StepExecutor(PLAYBOOK_EMERGENCY)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    result = executor.set_intent("emergency", session)
+    assert "Ask for name." in result
+
+    result = await executor.update_field("name", "Eric Tails", session)
+    assert result == "Ask for phone."
+
+    result = await executor.update_field("phone", "337-232-2341", session)
+    assert result == "Ask for address."
+
+    result = await executor.update_field("address", "456 Cypress St 70502", session)
+    assert result == "Confirm dispatch."
+
+    result = await executor.update_field("emergency_confirmed", "yes", session)
+    assert "[call_ended]" in result
+    assert executor.outcome == "dispatched"
+
+
+@pytest.mark.asyncio
+async def test_emergency_confirmed_no_takes_message():
+    """When caller says no at confirmation, take a message and end the call."""
+    executor = StepExecutor(PLAYBOOK_EMERGENCY)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("emergency", session)
+
+    await executor.update_field("name", "Eric Tails", session)
+    await executor.update_field("phone", "337-232-2341", session)
+    await executor.update_field("address", "456 Cypress St 70502", session)
+
+    result = await executor.update_field("emergency_confirmed", "no", session)
+    assert "[call_ended]" in result
+    assert executor.outcome == "message_taken"
+
+
+@pytest.mark.asyncio
+async def test_cancellation_full_flow():
+    """Cancellation: collect name/phone/reason -> take_message."""
+    executor = StepExecutor(PLAYBOOK_CANCELLATION)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    result = executor.set_intent("cancellation", session)
+    assert "Ask for name." in result
+
+    result = await executor.update_field("name", "Eric Tails", session)
+    assert result == "Ask for phone."
+
+    result = await executor.update_field("phone", "337-232-2341", session)
+    assert result == "Ask reason."
+
+    result = await executor.update_field(
+        "cancellation_reason", "Changed my mind", session
+    )
+    assert "[call_ended]" in result
+    assert executor.outcome == "message_taken"
+
+
+def test_warranty_speak_then_collect():
+    """Warranty intent: speak verbatim warranty text, then collect name (lookahead merge)."""
+    executor = StepExecutor(PLAYBOOK_WARRANTY)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    result = executor.set_intent("warranty", session)
+    assert 'Say EXACTLY: "All work has a one-year warranty."' in result
+    assert "Ask for name." in result
+    assert executor.current_step_index == 1
+
+
 # --- incomplete appointment time tests ---
 
 
 @pytest.mark.asyncio
 async def test_appointment_time_rejects_day_only():
     """update_field rejects 'Friday' alone for appointment_time."""
-    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT, "routine_service")
+    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT)
+    executor.time_window = "office_hours"
     session = make_mock_session()
+    executor.set_intent("routine_service", session)
     await executor.update_field("name", "Eric Tails", session)
     result = await executor.update_field("appointment_time", "Friday", session)
     assert "appointment_time" not in executor.collected
@@ -787,8 +919,10 @@ async def test_appointment_time_rejects_day_only():
 @pytest.mark.asyncio
 async def test_appointment_time_rejects_tomorrow():
     """update_field rejects 'tomorrow' alone for appointment_time."""
-    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT, "routine_service")
+    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT)
+    executor.time_window = "office_hours"
     session = make_mock_session()
+    executor.set_intent("routine_service", session)
     await executor.update_field("name", "Eric Tails", session)
     result = await executor.update_field("appointment_time", "tomorrow", session)
     assert "appointment_time" not in executor.collected
@@ -798,20 +932,24 @@ async def test_appointment_time_rejects_tomorrow():
 @pytest.mark.asyncio
 async def test_appointment_time_accepts_day_and_time():
     """update_field accepts 'Friday at 2 PM' — complete appointment time."""
-    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT, "routine_service")
+    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT)
+    executor.time_window = "office_hours"
     session = make_mock_session()
+    executor.set_intent("routine_service", session)
     await executor.update_field("name", "Eric Tails", session)
-    result = await executor.update_field("appointment_time", "Friday at 2 PM", session)
+    await executor.update_field("appointment_time", "Friday at 2 PM", session)
     assert executor.collected["appointment_time"] == "Friday at 2 PM"
 
 
 @pytest.mark.asyncio
 async def test_appointment_time_accepts_tomorrow_morning():
     """update_field accepts 'tomorrow morning' — not just a bare day name."""
-    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT, "routine_service")
+    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT)
+    executor.time_window = "office_hours"
     session = make_mock_session()
+    executor.set_intent("routine_service", session)
     await executor.update_field("name", "Eric Tails", session)
-    result = await executor.update_field(
+    await executor.update_field(
         "appointment_time", "tomorrow morning", session
     )
     assert executor.collected["appointment_time"] == "tomorrow morning"
@@ -820,9 +958,29 @@ async def test_appointment_time_accepts_tomorrow_morning():
 @pytest.mark.asyncio
 async def test_appointment_time_step_does_not_advance_on_reject():
     """Rejecting incomplete appointment_time keeps step index on the same step."""
-    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT, "routine_service")
+    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT)
+    executor.time_window = "office_hours"
     session = make_mock_session()
+    executor.set_intent("routine_service", session)
     await executor.update_field("name", "Eric Tails", session)
     assert executor.current_step_index == 1  # on appointment_time
     await executor.update_field("appointment_time", "Monday", session)
     assert executor.current_step_index == 1  # still on appointment_time
+
+
+# --- overwrite previously collected field ---
+
+
+@pytest.mark.asyncio
+async def test_update_field_overwrite_previous():
+    """Allow overwriting a previously collected field without advancing."""
+    executor = StepExecutor(MINIMAL_PLAYBOOK)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    await executor.update_field("name", "Eric Tails", session)
+    # Now on phone step — overwrite name
+    result = await executor.update_field("name", "Eric Smith", session)
+    assert executor.collected["name"] == "Eric Smith"
+    assert "Updated name" in result
+    assert executor.current_step_index == 1  # still on phone

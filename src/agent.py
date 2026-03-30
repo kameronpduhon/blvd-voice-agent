@@ -15,15 +15,12 @@ from livekit.agents import (
     AgentServer,
     AgentSession,
     JobContext,
-    JobProcess,
     RunContext,
     cli,
     function_tool,
-    inference,
     room_io,
 )
-from livekit.plugins import noise_cancellation, silero
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
+from livekit.plugins import google, noise_cancellation, silero
 
 from src.playbook import load_playbook
 from src.post_call import post_summary_from_userdata
@@ -35,147 +32,28 @@ logger = logging.getLogger("agent")
 load_dotenv(".env.local")
 
 
-class RouterAgent(Agent):
-    def __init__(self, playbook: dict, time_window: str | None = None):
+class AcmeHVACAgent(Agent):
+    def __init__(self, playbook: dict, time_window: str):
         self.playbook = playbook
-        self.time_window = time_window
-        super().__init__(instructions=playbook["router_prompt"])
+        self.executor = StepExecutor(playbook)
+        self.executor.time_window = time_window
 
-    async def on_enter(self) -> None:
-        # Check if this is an escalation re-entry — skip greeting and route directly
-        escalation = self.session.userdata.get("escalation_requested")
-        if escalation:
-            pre_collected = self.session.userdata.get("pre_collected")
-            # Clear escalation state so it doesn't loop
-            self.session.userdata["escalation_requested"] = None
-            self.session.userdata["pre_collected"] = None
-            # Route directly to the requested intent
-            await self._route(escalation, pre_collected)
-            return
-
-        scripts = self.playbook["scripts"]
-        if (
-            self.time_window is not None
-            and self.time_window != "office_hours"
-            and "after_hours_greeting" in scripts
-        ):
-            greeting = scripts["after_hours_greeting"]
-        else:
-            greeting = scripts["greeting"]
-        await self.session.say(greeting)
-
-    async def _resolve_intent(
-        self,
-        intent: str,
-        pre_collected: dict | None = None,
-        speak_acknowledgment: bool = False,
-    ) -> "IntentAgent":
-        """Shared routing logic: validate intent, apply off-hours redirect, update
-        userdata, optionally speak acknowledgment, and return a ready IntentAgent."""
-        if intent not in self.playbook["intents"]:
-            intent = "_fallback"
-
-        # Off-hours routing: redirect non-emergency to _after_hours
-        actual_intent = intent
-        requested_intent = None
-        if (
-            self.time_window is not None
-            and self.time_window != "office_hours"
-            and intent != "emergency"
-            and "_after_hours" in self.playbook["intents"]
-        ):
-            requested_intent = intent
-            actual_intent = "_after_hours"
-
-        # Store routing info in session userdata for post-call summary
-        self.session.userdata["intent"] = actual_intent
-        self.session.userdata["requested_intent"] = requested_intent
-        self.session.userdata["time_window"] = self.time_window
-
-        # Speak router acknowledgment if this intent has one — must complete before handoff
-        if speak_acknowledgment:
-            acknowledgments = self.playbook["scripts"].get(
-                "router_acknowledgments", {}
-            )
-            if actual_intent in acknowledgments:
-                await self.session.say(
-                    acknowledgments[actual_intent], allow_interruptions=False
-                )
-
-        return IntentAgent(
-            playbook=self.playbook,
-            intent=actual_intent,
-            time_window=self.time_window,
-            requested_intent=requested_intent,
-            pre_collected=pre_collected,
-        )
-
-    async def _route(self, intent: str, pre_collected: dict | None = None):
-        """Escalation re-entry: resolve intent and hand off directly."""
-        intent_agent = await self._resolve_intent(intent, pre_collected)
-        self.session.update_agent(intent_agent)
+        # Inject time_window into system prompt for greeting selection
+        prompt = playbook["system_prompt"].replace("TIME_WINDOW_PLACEHOLDER", time_window)
+        super().__init__(instructions=prompt)
 
     @function_tool()
-    async def route_to_intent(self, context: RunContext, intent: str) -> tuple:
-        """Route the caller to the appropriate specialist. Call this once after identifying what the caller needs.
+    async def set_intent(self, context: RunContext, intent: str) -> str:
+        """Identify the caller's need and start the appropriate flow. Call this once after greeting.
 
         Args:
             intent: The caller's intent (e.g. "routine_service", "emergency", "cancellation")
         """
-        # Read pre_collected from userdata (set by escalation)
-        pre_collected = self.session.userdata.get("pre_collected")
-        self.session.userdata["pre_collected"] = None
-
-        intent_agent = await self._resolve_intent(
-            intent, pre_collected, speak_acknowledgment=True
-        )
-        return intent_agent, "[routing_complete]"
-
-
-class IntentAgent(Agent):
-    def __init__(
-        self,
-        playbook: dict,
-        intent: str,
-        time_window: str | None = None,
-        requested_intent: str | None = None,
-        pre_collected: dict | None = None,
-    ):
-        self.playbook = playbook
-        self.intent = intent
-        self.pre_collected = pre_collected
-        self.executor = StepExecutor(playbook, intent, pre_collected=pre_collected)
-        self.executor.time_window = time_window
-        self.executor.requested_intent = requested_intent
-
-        # Use the intent-specific prompt
-        super().__init__(instructions=playbook["intent_prompts"][intent])
-
-    async def on_enter(self) -> None:
-        is_escalation = bool(self.pre_collected)
-
-        # Speak intent greeting only for non-escalation entries
-        if not is_escalation:
-            intent_greetings = self.playbook["scripts"].get("intent_greetings", {})
-            if self.intent in intent_greetings:
-                await self.session.say(intent_greetings[self.intent])
-                # Greeting already asked for name — LLM will wait for caller's response
-                # Step index stays at 0 (name collect); prompt instructs LLM not to re-ask
-                return
-
-        # Dispatch the current step (may be advanced past pre-collected steps)
-        first_instruction = await self.executor._dispatch_current_step(self.session)
-        if first_instruction:
-            if is_escalation:
-                collected_summary = ", ".join(
-                    f"{k} is {v}" for k, v in self.pre_collected.items()
-                )
-                first_instruction = (
-                    f"The caller has already provided: {collected_summary}. "
-                    "Do NOT re-ask for this information. Do NOT greet or introduce yourself. "
-                    f"Continue the conversation naturally. {first_instruction}"
-                )
-            self.session.generate_reply(instructions=first_instruction)
+        result = self.executor.set_intent(intent, context.session)
+        # Sync to userdata
+        context.session.userdata["intent"] = self.executor.current_intent
+        context.session.userdata["requested_intent"] = self.executor.requested_intent
+        return result
 
     @function_tool()
     async def update_field(
@@ -187,57 +65,35 @@ class IntentAgent(Agent):
             field_name: The exact field name for the current step
             value: The caller's actual response. NEVER use placeholders.
         """
-        result = await self.executor.update_field(field_name, value, self.session)
+        result = await self.executor.update_field(field_name, value, context.session)
 
-        # Sync collected data to session userdata for cross-agent access
-        self.session.userdata["collected"] = self.executor.collected
-        self.session.userdata["transcript"] = self.executor.transcript
-        self.session.userdata["outcome"] = self.executor.outcome
+        # Sync collected data to session userdata
+        context.session.userdata["collected"] = self.executor.collected
+        context.session.userdata["outcome"] = self.executor.outcome
 
         if "[call_ended]" in result:
             await context.wait_for_playout()
-            self.session.shutdown()
+            context.session.shutdown()
         return result
 
     @function_tool()
-    async def escalate(self, context: RunContext, new_intent: str) -> tuple:
+    async def switch_intent(self, context: RunContext, new_intent: str) -> str:
         """Route the caller to a different intent when they ask for something outside this flow.
         For example, if during routine_service the caller says "actually I need to cancel."
 
         Args:
             new_intent: The intent to route to (e.g. "cancellation", "emergency")
         """
-        # Validate intent name against known playbook intents
-        valid_intents = [k for k in self.playbook["intents"] if not k.startswith("_")]
-        if new_intent not in self.playbook["intents"]:
-            return f"Invalid intent '{new_intent}'. Valid intents are: {', '.join(valid_intents)}"
-
-        # Carry forward fields that are likely shared (name, phone)
-        shared_fields = {}
-        for field in ["name", "phone"]:
-            if field in self.executor.collected:
-                shared_fields[field] = self.executor.collected[field]
-
-        # Store shared fields in userdata for the router to pass along
-        self.session.userdata["pre_collected"] = shared_fields
-        self.session.userdata["escalation_requested"] = new_intent
-
-        # Speak escalation acknowledgment before handoff — single-voice UX
-        await self.session.say(
-            "Of course, I can help with that.", allow_interruptions=False
-        )
-
-        router = RouterAgent(
-            playbook=self.playbook,
-            time_window=self.executor.time_window,
-        )
-        return router, "[escalation_complete]"
+        result = self.executor.switch_intent(new_intent, context.session)
+        context.session.userdata["intent"] = self.executor.current_intent
+        context.session.userdata["requested_intent"] = self.executor.requested_intent
+        return result
 
 
 server = AgentServer()
 
 
-def prewarm(proc: JobProcess):
+def prewarm(proc):
     proc.userdata["vad"] = silero.VAD.load()
 
 
@@ -253,12 +109,12 @@ async def entrypoint(ctx: JobContext):
     call_start_time = time.time()
 
     session = AgentSession(
-        stt=inference.STT(model="deepgram/nova-3", language="multi"),
-        llm=inference.LLM(model="google/gemini-2.5-flash"),
-        tts=inference.TTS(model="deepgram/aura-2", voice="asteria"),
-        turn_detection=MultilingualModel(),
+        llm=google.realtime.RealtimeModel(
+            model="gemini-2.5-flash-native-audio-preview-12-2025",
+            voice="Kore",
+            temperature=0.8,
+        ),
         vad=ctx.proc.userdata["vad"],
-        preemptive_generation=True,
         userdata={
             "intent": None,
             "requested_intent": None,
@@ -266,12 +122,10 @@ async def entrypoint(ctx: JobContext):
             "collected": {},
             "transcript": "",
             "outcome": None,
-            "pre_collected": None,
-            "escalation_requested": None,
         },
     )
 
-    agent = RouterAgent(playbook, time_window)
+    agent = AcmeHVACAgent(playbook, time_window)
 
     await session.start(
         agent=agent,
@@ -288,7 +142,7 @@ async def entrypoint(ctx: JobContext):
         ),
     )
 
-    # Transcript capture — conversation_item_added fires for both user and agent messages
+    # Transcript capture — may be delayed with native audio
     @session.on("conversation_item_added")
     def on_conversation_item(ev):
         text = ev.item.text_content
@@ -298,15 +152,23 @@ async def entrypoint(ctx: JobContext):
 
     await ctx.connect()
 
-    # Post-call summary on disconnect
+    # Greeting trigger — model needs explicit nudge to start speaking
+    session.generate_reply(
+        instructions="Greet the caller now using the greeting from your instructions."
+    )
+
+    # Post-call summary on disconnect — delayed to allow transcript to settle
     _background_tasks: set[asyncio.Task] = set()
 
     @ctx.room.on("participant_disconnected")
     def on_disconnect(participant):
         if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
-            task = asyncio.create_task(
-                post_summary_from_userdata(session.userdata, call_start_time)
-            )
+
+            async def delayed_summary():
+                await asyncio.sleep(10)  # Let transcript events settle
+                await post_summary_from_userdata(session.userdata, call_start_time)
+
+            task = asyncio.create_task(delayed_summary())
             _background_tasks.add(task)
             task.add_done_callback(_background_tasks.discard)
 

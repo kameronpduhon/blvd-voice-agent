@@ -19,6 +19,13 @@ def make_mock_session():
     return session
 
 
+def make_executor(playbook, intent):
+    """Helper: create StepExecutor and set intent directly for action tests."""
+    executor = StepExecutor(playbook)
+    executor.current_intent = intent
+    return executor
+
+
 PLAYBOOK = {
     "meta": {"company_name": "Test Co", "timezone": "America/Chicago"},
     "intents": {
@@ -56,7 +63,7 @@ PLAYBOOK = {
 
 @pytest.mark.asyncio
 async def test_check_fee_approved_yes():
-    executor = StepExecutor(PLAYBOOK, "routine_service")
+    executor = make_executor(PLAYBOOK, "routine_service")
     # Set to -1 so advance() increments to 0 (the collect/name step).
     # This simulates the action being called mid-flow.
     executor.current_step_index = -1
@@ -69,7 +76,7 @@ async def test_check_fee_approved_yes():
 
 @pytest.mark.asyncio
 async def test_check_fee_approved_no():
-    executor = StepExecutor(PLAYBOOK, "routine_service")
+    executor = make_executor(PLAYBOOK, "routine_service")
     executor.collected["fee_approved"] = "no"
     session = make_mock_session()
     result = await check_fee_approved(executor, session)
@@ -81,8 +88,7 @@ async def test_check_fee_approved_no():
 
 @pytest.mark.asyncio
 async def test_check_service_area_in_area():
-    executor = StepExecutor(PLAYBOOK, "routine_service")
-    executor.current_intent = "routine_service"
+    executor = make_executor(PLAYBOOK, "routine_service")
     # Set to -1 so advance() increments to 0 (the collect/name step)
     executor.current_step_index = -1
     executor.collected["address"] = "456 Cypress St Springfield 70502"
@@ -134,7 +140,7 @@ async def test_check_service_area_missing_zip_asks_for_zip():
             "closing_message": "Message taken.",
         },
     }
-    executor = StepExecutor(playbook, "routine_service")
+    executor = make_executor(playbook, "routine_service")
     executor.current_step_index = 2  # on the check_service_area action step
     executor.collected["address"] = "456 Cypress Street"
     session = make_mock_session()
@@ -148,7 +154,7 @@ async def test_check_service_area_missing_zip_asks_for_zip():
 
 @pytest.mark.asyncio
 async def test_check_service_area_out_of_area():
-    executor = StepExecutor(PLAYBOOK, "routine_service")
+    executor = make_executor(PLAYBOOK, "routine_service")
     executor.collected["address"] = "123 Main St Houston 77001"
     session = make_mock_session()
     result = await check_service_area(executor, session)
@@ -160,7 +166,7 @@ async def test_check_service_area_out_of_area():
 
 @pytest.mark.asyncio
 async def test_confirm_booking_resolves_template():
-    executor = StepExecutor(PLAYBOOK, "routine_service")
+    executor = make_executor(PLAYBOOK, "routine_service")
     executor.collected = {"appointment_time": "tomorrow 9am", "name": "Eric"}
     session = make_mock_session()
     result = await confirm_booking(executor, session)
@@ -172,7 +178,7 @@ async def test_confirm_booking_resolves_template():
 
 @pytest.mark.asyncio
 async def test_take_message_resolves_template():
-    executor = StepExecutor(PLAYBOOK, "routine_service")
+    executor = make_executor(PLAYBOOK, "routine_service")
     executor.collected = {"name": "Eric"}
     session = make_mock_session()
     result = await take_message(executor, session)
@@ -184,7 +190,7 @@ async def test_take_message_resolves_template():
 
 @pytest.mark.asyncio
 async def test_dispatch_oncall_tech_resolves_template():
-    executor = StepExecutor(PLAYBOOK, "routine_service")
+    executor = make_executor(PLAYBOOK, "routine_service")
     executor.collected = {
         "phone": "337-232-2341",
         "name": "Eric",
@@ -232,7 +238,7 @@ async def test_check_emergency_confirmed_yes_advances():
         "service_areas": [],
         "scripts": {"closing_dispatched": "Tech sent to {phone}."},
     }
-    executor = StepExecutor(playbook, "emergency")
+    executor = make_executor(playbook, "emergency")
     executor.current_step_index = 1  # on the check_emergency_confirmed action step
     executor.collected = {
         "name": "Eric",
@@ -250,7 +256,7 @@ async def test_check_emergency_confirmed_yes_advances():
 @pytest.mark.asyncio
 async def test_check_emergency_confirmed_no_takes_message():
     """When caller says no, fall through to take_message and end the call."""
-    executor = StepExecutor(PLAYBOOK, "routine_service")
+    executor = make_executor(PLAYBOOK, "routine_service")
     executor.collected = {"emergency_confirmed": "no", "name": "Eric"}
     session = make_mock_session()
     result = await check_emergency_confirmed(executor, session)
@@ -301,7 +307,7 @@ PLAYBOOK_HVAC = {
 @pytest.mark.asyncio
 async def test_check_fee_approved_uses_tts_company_name():
     """Fee decline closing should use TTS-friendly company name."""
-    executor = StepExecutor(PLAYBOOK_HVAC, "routine_service")
+    executor = make_executor(PLAYBOOK_HVAC, "routine_service")
     executor.collected["fee_approved"] = "no"
     session = make_mock_session()
     result = await check_fee_approved(executor, session)
@@ -312,7 +318,7 @@ async def test_check_fee_approved_uses_tts_company_name():
 @pytest.mark.asyncio
 async def test_check_service_area_out_uses_tts_company_name():
     """Out-of-area closing should use TTS-friendly company name."""
-    executor = StepExecutor(PLAYBOOK_HVAC, "routine_service")
+    executor = make_executor(PLAYBOOK_HVAC, "routine_service")
     executor.collected["address"] = "123 Main St Houston 77001"
     session = make_mock_session()
     result = await check_service_area(executor, session)
