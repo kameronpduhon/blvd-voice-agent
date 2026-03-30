@@ -134,17 +134,9 @@ You ARE the voice of the company — speak naturally, not like you're reading a 
 Pace: {voice.get("pace", "natural, conversational")}."""
 
     # --- 2. GREETING ---
-    greeting = scripts.get("greeting", f"Thank you for calling {company_tts}, how can I help you today?")
-    greeting_section = f"""# GREETING
-When the call connects, greet the caller. The greeting depends on the time window:
-
-Office hours greeting: "{greeting}"
-"""
-    after_hours_greeting = scripts.get("after_hours_greeting")
-    if after_hours_greeting:
-        greeting_section += f'After-hours greeting: "{after_hours_greeting}"\n'
-    greeting_section += """
-The current time window is: {time_window}. Use the office hours greeting when the time window is "office_hours". Otherwise use the after-hours greeting."""
+    # Single {greeting} placeholder — agent.py injects the correct greeting at runtime
+    greeting_section = """# GREETING
+When the call connects, greet the caller with: "{greeting}" """
 
     # --- 3. INTENT IDENTIFICATION ---
     intent_lines = []

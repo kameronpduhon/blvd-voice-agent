@@ -38,8 +38,14 @@ class CajunHVACAgent(Agent):
         self.executor = StepExecutor(playbook)
         self.executor.time_window = time_window
 
-        # Inject time_window into system prompt for greeting selection
-        prompt = playbook["system_prompt"].replace("{time_window}", time_window)
+        # Pick the correct greeting based on time window
+        prompt = playbook["system_prompt"]
+        if time_window == "office_hours":
+            self.greeting = playbook["scripts"]["greeting"]
+        else:
+            self.greeting = playbook["scripts"]["after_hours_greeting"]
+        prompt = prompt.replace("{greeting}", self.greeting)
+
         super().__init__(instructions=prompt)
 
     @function_tool()
@@ -146,7 +152,7 @@ async def entrypoint(ctx: JobContext):
 
     # Greeting trigger — model needs explicit nudge to start speaking
     session.generate_reply(
-        instructions="Greet the caller now using the greeting from your instructions."
+        instructions=f'Greet the caller by saying: "{agent.greeting}"'
     )
 
     # Post-call summary on disconnect — delayed to allow transcript to settle
