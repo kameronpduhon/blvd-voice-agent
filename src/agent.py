@@ -77,9 +77,6 @@ class AcmeHVACAgent(Agent):
         context.session.userdata["collected"] = self.executor.collected
         context.session.userdata["outcome"] = self.executor.outcome
 
-        if "[call_ended]" in result:
-            await context.wait_for_playout()
-            context.session.shutdown()
         return result
 
     @function_tool()
