@@ -30,9 +30,9 @@ PLACEHOLDER_PATTERNS = {
 
 
 class StepExecutor:
-    def __init__(self, playbook: dict, intent: str, pre_collected: dict | None = None):
+    def __init__(self, playbook: dict):
         self.playbook = playbook
-        self.current_intent: str = intent
+        self.current_intent: str | None = None
         self.current_step_index: int = 0
         self.collected: dict[str, str] = {}
         self.transcript: str = ""
@@ -40,12 +40,6 @@ class StepExecutor:
         self.time_window: str | None = None
         self.call_start_time: float | None = None
         self.requested_intent: str | None = None
-
-        # Pre-populate fields carried from a previous agent (e.g., name, phone)
-        if pre_collected:
-            for field, value in pre_collected.items():
-                self.collected[field] = value
-            self._skip_pre_collected_steps()
 
     def _skip_pre_collected_steps(self):
         """Skip past collect steps for fields that are already in self.collected."""
@@ -73,7 +67,107 @@ class StepExecutor:
             return self.current_steps[next_idx]
         return None
 
+    def set_intent(self, intent: str, session) -> str:
+        """Called once after greeting when LLM identifies caller's need.
+        Handles off-hours routing internally."""
+
+        # Validate intent exists
+        if intent not in self.playbook["intents"]:
+            intent = "_fallback"
+
+        # Off-hours routing: redirect non-emergency to _after_hours
+        actual_intent = intent
+        if (
+            self.time_window is not None
+            and self.time_window != "office_hours"
+            and intent != "emergency"
+            and "_after_hours" in self.playbook["intents"]
+        ):
+            self.requested_intent = intent
+            actual_intent = "_after_hours"
+        else:
+            self.requested_intent = None
+
+        self.current_intent = actual_intent
+        self.current_step_index = 0
+
+        return self._dispatch_first_step()
+
+    def switch_intent(self, new_intent: str, session) -> str:
+        """Mid-call intent change. Carries forward shared fields."""
+
+        # Validate
+        valid_intents = [k for k in self.playbook["intents"] if not k.startswith("_")]
+        if new_intent not in self.playbook["intents"]:
+            return f"Invalid intent '{new_intent}'. Valid intents: {', '.join(valid_intents)}"
+
+        # Carry forward shared fields
+        shared_fields = {}
+        for field in ["name", "phone"]:
+            if field in self.collected:
+                shared_fields[field] = self.collected[field]
+
+        # Off-hours routing applies to switches too
+        actual_intent = new_intent
+        if (
+            self.time_window is not None
+            and self.time_window != "office_hours"
+            and new_intent != "emergency"
+            and "_after_hours" in self.playbook["intents"]
+        ):
+            self.requested_intent = new_intent
+            actual_intent = "_after_hours"
+        else:
+            self.requested_intent = None
+
+        # Reset for new intent
+        self.current_intent = actual_intent
+        self.current_step_index = 0
+        self.collected = shared_fields
+        self.outcome = None
+
+        # Skip steps for already-collected shared fields
+        self._skip_pre_collected_steps()
+
+        # Build response with acknowledgment
+        first_step = self._dispatch_first_step()
+        return f"Say 'Of course, I can help with that.' Then: {first_step}"
+
+    def _dispatch_first_step(self) -> str:
+        """Return speech instruction for the current step (used after set/switch intent).
+        Sync because first steps are always collect or speak, never action
+        (enforced by compiler validation)."""
+        if self.current_step_index >= len(self.current_steps):
+            return "[call_ended]"
+        step = self.current_steps[self.current_step_index]
+        if step["type"] == "collect":
+            return step["prompt"]
+        if step["type"] == "speak":
+            return self._format_speak_sync(step)
+        # Action steps should never be first (compiler validates this)
+        return f"[action:{step['fn']}]"
+
+    def _format_speak_sync(self, step: dict) -> str:
+        """Format a speak step, merging with next collect if present. Sync version."""
+        if step["mode"] == "verbatim":
+            text = step["text"]
+            next_step = self.peek_next_step()
+            if next_step and next_step["type"] == "collect":
+                self.current_step_index += 1
+                return f'Say EXACTLY: "{text}" Then, {next_step["prompt"]}'
+            return f'Say EXACTLY: "{text}"'
+        else:
+            prompt = step["prompt"]
+            next_step = self.peek_next_step()
+            if next_step and next_step["type"] == "collect":
+                self.current_step_index += 1
+                return f"{prompt} Then, {next_step['prompt']}"
+            return prompt
+
     async def update_field(self, field_name: str, value: str, session) -> str:
+        if self.current_intent is None:
+            return "No intent has been set yet. Call set_intent first."
+
         step = self.current_steps[self.current_step_index]
         if step["type"] != "collect":
             return "Current step is not a collect step."
