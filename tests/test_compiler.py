@@ -178,14 +178,15 @@ def test_system_prompt_includes_identity():
     assert "friendly Southern receptionist" in prompt
 
 
-def test_system_prompt_includes_greeting():
+def test_system_prompt_includes_greeting_placeholder():
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
     prompt = result["system_prompt"]
-    assert "Hello!" in prompt
-    assert "{time_window}" in prompt
+    # Greeting is now a runtime placeholder — agent.py injects the correct one
+    assert "{greeting}" in prompt
 
 
-def test_system_prompt_includes_after_hours_greeting():
+def test_after_hours_greeting_not_in_prompt():
+    """After-hours greeting should NOT appear in compiled prompt (injected at runtime)."""
     pb = json.loads(json.dumps(VALID_PLAYBOOK))
     pb["scripts"]["after_hours_greeting"] = "Office is closed."
     pb["intents"]["_after_hours"] = {
@@ -197,7 +198,8 @@ def test_system_prompt_includes_after_hours_greeting():
     }
     result = compile_playbook(pb, "test.json")
     prompt = result["system_prompt"]
-    assert "Office is closed." in prompt
+    assert "Office is closed." not in prompt
+    assert "{greeting}" in prompt
 
 
 def test_system_prompt_includes_intent_list():
