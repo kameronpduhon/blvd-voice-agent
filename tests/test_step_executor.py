@@ -1052,6 +1052,44 @@ async def test_address_zip_recovery_conversational_input():
 
 
 @pytest.mark.asyncio
+async def test_address_zip_recovery_sentence_cased():
+    """KAM-27: Sentence-cased 'My zip is 70502' should merge, not replace."""
+    executor = StepExecutor(PLAYBOOK_WITH_SERVICE_AREA)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    await executor.update_field("name", "Eric Tails", session)
+    await executor.update_field("phone", "337-232-2341", session)
+    await executor.update_field("address", "123 Main Street", session)
+    executor.pending_fragments["address_missing_zip"] = "123 Main Street"
+    for i, step in enumerate(executor.current_steps):
+        if step.get("field") == "address":
+            executor.current_step_index = i
+            break
+    await executor.update_field("address", "My zip is 70502", session)
+    assert executor.collected["address"] == "123 Main Street, 70502"
+
+
+@pytest.mark.asyncio
+async def test_address_zip_recovery_its_variant():
+    """KAM-27: \"It's 70502\" should merge, not replace."""
+    executor = StepExecutor(PLAYBOOK_WITH_SERVICE_AREA)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    await executor.update_field("name", "Eric Tails", session)
+    await executor.update_field("phone", "337-232-2341", session)
+    await executor.update_field("address", "456 Oak Ave", session)
+    executor.pending_fragments["address_missing_zip"] = "456 Oak Ave"
+    for i, step in enumerate(executor.current_steps):
+        if step.get("field") == "address":
+            executor.current_step_index = i
+            break
+    await executor.update_field("address", "It's 70503", session)
+    assert executor.collected["address"] == "456 Oak Ave, 70503"
+
+
+@pytest.mark.asyncio
 async def test_address_zip_recovery_full_corrected_address():
     """KAM-27: Full corrected address with ZIP should replace, not merge old street."""
     executor = StepExecutor(PLAYBOOK_WITH_SERVICE_AREA)

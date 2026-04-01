@@ -42,7 +42,7 @@ def _merge_address_with_zip(original_address: str, follow_up: str) -> str:
         return stripped
     # Check if the follow-up is ZIP-only: remove the ZIP and any filler words,
     # and see if anything substantive (letters) remains
-    without_zip = stripped.replace(zip_code, "").strip()
+    without_zip = stripped.replace(zip_code, "").strip().lower()
     # Strip common filler words that surround a bare ZIP
     for filler in ("my", "zip", "code", "is", "it's", "the"):
         without_zip = without_zip.replace(filler, "").strip()
