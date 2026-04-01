@@ -984,3 +984,156 @@ async def test_update_field_overwrite_previous():
     assert executor.collected["name"] == "Eric Smith"
     assert "Updated name" in result
     assert executor.current_step_index == 1  # still on phone
+
+
+# --- address ZIP-recovery merge tests (KAM-27) ---
+
+PLAYBOOK_WITH_SERVICE_AREA = {
+    "intents": {
+        "routine_service": {
+            "label": "Routine Service",
+            "steps": [
+                {"type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for name."},
+                {"type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for phone."},
+                {"type": "collect", "field": "address", "mode": "guided", "prompt": "Ask for address."},
+                {"type": "action", "fn": "check_service_area"},
+                {"type": "collect", "field": "appointment_time", "mode": "guided", "prompt": "Ask when they'd like to schedule."},
+            ],
+        },
+        "_fallback": {
+            "label": "Fallback",
+            "steps": [{"type": "collect", "field": "name", "mode": "guided", "prompt": "Name?"}],
+        },
+    },
+    "service_areas": ["70502", "70503"],
+    "scripts": {"closing_booked": "Done.", "closing_message": "Done."},
+}
+
+
+@pytest.mark.asyncio
+async def test_address_zip_recovery_merges_not_overwrites():
+    """KAM-27: With pending fragment, ZIP follow-up should merge into original address."""
+    executor = StepExecutor(PLAYBOOK_WITH_SERVICE_AREA)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    await executor.update_field("name", "Eric Tails", session)
+    await executor.update_field("phone", "337-232-2341", session)
+    await executor.update_field("address", "123 Main Street", session)
+    # Simulate what check_service_area does: stash original + rewind
+    executor.pending_fragments["address_missing_zip"] = "123 Main Street"
+    for i, step in enumerate(executor.current_steps):
+        if step.get("field") == "address":
+            executor.current_step_index = i
+            break
+    # Follow-up with just a ZIP
+    await executor.update_field("address", "70502", session)
+    assert executor.collected["address"] == "123 Main Street, 70502"
+    assert "address_missing_zip" not in executor.pending_fragments
+
+
+@pytest.mark.asyncio
+async def test_address_zip_recovery_conversational_input():
+    """KAM-27: Merge should handle 'my zip is 70502' not just bare '70502'."""
+    executor = StepExecutor(PLAYBOOK_WITH_SERVICE_AREA)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    await executor.update_field("name", "Eric Tails", session)
+    await executor.update_field("phone", "337-232-2341", session)
+    await executor.update_field("address", "123 Main Street", session)
+    executor.pending_fragments["address_missing_zip"] = "123 Main Street"
+    for i, step in enumerate(executor.current_steps):
+        if step.get("field") == "address":
+            executor.current_step_index = i
+            break
+    await executor.update_field("address", "my zip is 70502", session)
+    assert executor.collected["address"] == "123 Main Street, 70502"
+
+
+@pytest.mark.asyncio
+async def test_address_full_replacement_without_pending_fragment():
+    """KAM-27: Without pending fragment, full address replacement works normally."""
+    executor = StepExecutor(PLAYBOOK_WITH_SERVICE_AREA)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    await executor.update_field("name", "Eric Tails", session)
+    await executor.update_field("phone", "337-232-2341", session)
+    await executor.update_field("address", "123 Main Street, 70502", session)
+    # Rewind to address step WITHOUT setting pending fragment (not a ZIP recovery)
+    for i, step in enumerate(executor.current_steps):
+        if step.get("field") == "address":
+            executor.current_step_index = i
+            break
+    await executor.update_field("address", "456 Elm Street 70503", session)
+    assert executor.collected["address"] == "456 Elm Street 70503"
+
+
+# --- appointment time merge tests (KAM-29) ---
+
+
+@pytest.mark.asyncio
+async def test_appointment_time_merge_day_and_time():
+    """KAM-29: Day rejection + time follow-up should merge into full appointment."""
+    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    await executor.update_field("name", "Eric Tails", session)
+    result = await executor.update_field("appointment_time", "Friday", session)
+    assert "time" in result.lower()
+    assert "appointment_time" not in executor.collected
+    assert executor.pending_fragments["appointment_time"] == "Friday"
+    await executor.update_field("appointment_time", "2 PM", session)
+    assert executor.collected["appointment_time"] == "Friday at 2 PM"
+    assert "appointment_time" not in executor.pending_fragments
+
+
+@pytest.mark.asyncio
+async def test_appointment_time_full_replacement():
+    """KAM-29: Full day+time replacement should overwrite, not merge."""
+    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    await executor.update_field("name", "Eric Tails", session)
+    await executor.update_field("appointment_time", "Friday", session)
+    assert executor.pending_fragments["appointment_time"] == "Friday"
+    await executor.update_field("appointment_time", "Monday at 1 PM", session)
+    assert executor.collected["appointment_time"] == "Monday at 1 PM"
+
+
+@pytest.mark.asyncio
+async def test_appointment_time_dropped_call_no_partial_in_collected():
+    """KAM-29: If call drops after day rejection, collected should NOT have partial."""
+    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    await executor.update_field("name", "Eric Tails", session)
+    await executor.update_field("appointment_time", "Friday", session)
+    assert "appointment_time" not in executor.collected
+
+
+@pytest.mark.asyncio
+async def test_set_intent_clears_pending_fragments():
+    """Pending fragments should be cleared when set_intent is called."""
+    executor = StepExecutor(PLAYBOOK_WITH_APPOINTMENT)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.pending_fragments["appointment_time"] = "Friday"
+    executor.set_intent("routine_service", session)
+    assert executor.pending_fragments == {}
+
+
+@pytest.mark.asyncio
+async def test_switch_intent_clears_pending_fragments():
+    """Pending fragments should be cleared when switch_intent is called."""
+    executor = StepExecutor(PLAYBOOK_WITH_AFTER_HOURS)
+    executor.time_window = "office_hours"
+    session = make_mock_session()
+    executor.set_intent("routine_service", session)
+    executor.pending_fragments["appointment_time"] = "Friday"
+    executor.switch_intent("cancellation", session)
+    assert executor.pending_fragments == {}

@@ -15,7 +15,8 @@ async def check_service_area(executor, session) -> str:
     zip_code = extract_zip(address)
 
     if zip_code is None:
-        # Missing zip — go back to the address step and ask for the zip
+        # Missing zip — stash original address and rewind to address step
+        executor.pending_fragments["address_missing_zip"] = address
         for i, step in enumerate(executor.current_steps):
             if step.get("field") == "address":
                 executor.current_step_index = i

@@ -2,6 +2,7 @@ import logging
 import re
 
 from src.actions import ACTION_REGISTRY
+from src.utils import extract_zip
 
 logger = logging.getLogger("agent")
 
@@ -29,12 +30,33 @@ PLACEHOLDER_PATTERNS = {
 }
 
 
+def _merge_address_with_zip(original_address: str, follow_up: str) -> str:
+    """Append a ZIP from the follow-up onto the original street address."""
+    zip_code = extract_zip(follow_up.strip())
+    if zip_code:
+        return f"{original_address.strip()}, {zip_code}"
+    return follow_up.strip()
+
+
+def _merge_appointment_day_time(day_fragment: str, new: str) -> str:
+    """Combine a pending day fragment with a time value."""
+    new_stripped = new.strip()
+    if DAY_ONLY_PATTERN.match(new_stripped):
+        return new_stripped
+    if any(d in new_stripped.lower() for d in
+           ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+            "today", "tomorrow"]):
+        return new_stripped
+    return f"{day_fragment.strip()} at {new_stripped}"
+
+
 class StepExecutor:
     def __init__(self, playbook: dict):
         self.playbook = playbook
         self.current_intent: str | None = None
         self.current_step_index: int = 0
         self.collected: dict[str, str] = {}
+        self.pending_fragments: dict[str, str] = {}
         self.transcript: str = ""
         self.outcome: str | None = None
         self.time_window: str | None = None
@@ -90,6 +112,7 @@ class StepExecutor:
 
         self.current_intent = actual_intent
         self.current_step_index = 0
+        self.pending_fragments = {}
 
         return self._dispatch_first_step()
 
@@ -124,6 +147,7 @@ class StepExecutor:
         self.current_intent = actual_intent
         self.current_step_index = 0
         self.collected = shared_fields
+        self.pending_fragments = {}
         self.outcome = None
 
         # Skip steps for already-collected shared fields
@@ -185,8 +209,22 @@ class StepExecutor:
         if value.strip().lower() in PLACEHOLDER_PATTERNS:
             return f"Please provide a real value for {field_name}, not a placeholder."
 
-        if field_name == "appointment_time" and _is_incomplete_appointment_time(value):
-            return f"The caller only provided a day ({value}) but not a specific time. Ask what time on {value} works for them."
+        # --- Address ZIP-recovery merge (KAM-27) ---
+        if field_name == "address" and "address_missing_zip" in self.pending_fragments:
+            original = self.pending_fragments.pop("address_missing_zip")
+            value = _merge_address_with_zip(original, value)
+
+        # --- Appointment time merge (KAM-29) ---
+        if field_name == "appointment_time":
+            if _is_incomplete_appointment_time(value):
+                self.pending_fragments["appointment_time"] = value
+                return (
+                    f"The caller only provided a day ({value}) but not a specific time. "
+                    f"Ask what time on {value} works for them."
+                )
+            if "appointment_time" in self.pending_fragments:
+                day = self.pending_fragments.pop("appointment_time")
+                value = _merge_appointment_day_time(day, value)
 
         self.collected[field_name] = value
         return await self.advance(session)

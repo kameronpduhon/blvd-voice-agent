@@ -324,3 +324,34 @@ async def test_check_service_area_out_uses_tts_company_name():
     result = await check_service_area(executor, session)
     assert "Cajun H-vac" in result
     assert "Cajun HVAC" not in result
+
+
+@pytest.mark.asyncio
+async def test_check_service_area_missing_zip_sets_pending_fragment():
+    """KAM-27: check_service_area should stash original address in pending_fragments."""
+    playbook = {
+        "meta": {"company_name": "Test Co", "timezone": "America/Chicago"},
+        "intents": {
+            "routine_service": {
+                "label": "Routine Service",
+                "steps": [
+                    {"type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for name."},
+                    {"type": "collect", "field": "address", "mode": "guided", "prompt": "Ask for address."},
+                    {"type": "action", "fn": "check_service_area"},
+                ],
+            },
+            "_fallback": {
+                "label": "Fallback",
+                "steps": [{"type": "collect", "field": "name", "mode": "guided", "prompt": "Ask name."}],
+            },
+        },
+        "service_areas": ["70502", "70503"],
+        "scripts": {"closing_booked": "All set!", "closing_message": "Message taken."},
+    }
+    executor = make_executor(playbook, "routine_service")
+    executor.current_step_index = 2
+    executor.collected["address"] = "123 Main Street"
+    session = make_mock_session()
+    result = await check_service_area(executor, session)
+    assert "zip code" in result.lower()
+    assert executor.pending_fragments["address_missing_zip"] == "123 Main Street"

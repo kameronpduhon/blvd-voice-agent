@@ -9,9 +9,7 @@ Built on **Twilio SIP + LiveKit Agents SDK** with a playbook-driven architecture
 | Layer | Technology |
 |-------|-----------|
 | Agent framework | LiveKit Agents SDK 1.4.x (Python) |
-| Speech-to-text | Deepgram Nova-3 (multilingual) |
-| LLM | OpenAI GPT-4.1-mini |
-| Text-to-speech | Deepgram Aura-2 |
+| LLM | Google Gemini 2.5 Flash (native audio) |
 | Telephony | Twilio → LiveKit SIP |
 | Package manager | uv |
 
@@ -21,7 +19,7 @@ A **modernized state machine** drives every call:
 
 1. Caller dials in via Twilio, which connects to a LiveKit SIP room
 2. The Python agent joins the room and greets the caller
-3. `StepExecutor` walks through playbook-defined steps using two LLM tools: `set_intent` and `update_field`
+3. `StepExecutor` walks through playbook-defined steps using three LLM tools: `set_intent`, `update_field`, and `switch_intent`
 4. Steps collect fields, speak scripts, or fire actions (book appointment, dispatch tech, take message)
 5. Post-call summary is sent to the backend
 
@@ -40,7 +38,8 @@ The playbook compiler validates client config and builds the system prompt — t
 | `billing` | Name → phone → issue → take message |
 | `complaint` | Name → phone → issue → take message |
 | `commercial` | Name → phone → issue → take message |
-| `_fallback` | Name → phone → take message |
+| `_fallback` | Name → phone → message → take message |
+| `_after_hours` | Name → phone → issue → preferred callback time → take message |
 
 ## Project Structure
 
@@ -61,7 +60,8 @@ tests/
 ├── test_utils.py
 ├── test_step_executor.py
 ├── test_actions.py
-└── test_compiler.py
+├── test_compiler.py
+└── test_post_call.py
 ```
 
 ## Getting Started
@@ -95,8 +95,7 @@ Create a `.env.local` file with:
 LIVEKIT_URL=wss://your-livekit-instance.livekit.cloud
 LIVEKIT_API_KEY=...
 LIVEKIT_API_SECRET=...
-OPENAI_API_KEY=...
-DEEPGRAM_API_KEY=...
+GOOGLE_API_KEY=...
 COMPILED_PLAYBOOK_PATH=playbooks/cajun-hvac.compiled.json
 BACKEND_URL=http://localhost:8000
 ```

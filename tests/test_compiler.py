@@ -365,6 +365,16 @@ def test_compile_tts_company_name_no_hvac():
     assert result["meta"]["tts_company_name"] == "Test Co"
 
 
+def test_collect_verbatim_rejected():
+    """KAM-32: collect + mode:verbatim should be rejected by compiler."""
+    pb = json.loads(json.dumps(VALID_PLAYBOOK))
+    pb["intents"]["routine_service"]["steps"] = [
+        {"type": "collect", "field": "name", "mode": "verbatim", "text": "Some text"}
+    ]
+    with pytest.raises(CompilerError, match="collect steps cannot use mode 'verbatim'"):
+        validate(pb)
+
+
 def test_compile_all_ten_intents():
     """Full playbook with all 10 intents compiles without error."""
     pb = json.loads(json.dumps(VALID_PLAYBOOK))

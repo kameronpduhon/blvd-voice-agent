@@ -98,11 +98,12 @@ def validate(playbook: dict) -> None:
             if stype == "collect":
                 if "field" not in step:
                     raise CompilerError(f"{step_id}: collect step missing 'field'")
-                if mode == "verbatim" and "text" not in step:
+                if mode == "verbatim":
                     raise CompilerError(
-                        f"{step_id}: collect/verbatim requires 'text' field"
+                        f"{step_id}: collect steps cannot use mode 'verbatim' — "
+                        "collect steps are interactive prompts and must use mode 'guided' with a 'prompt' field"
                     )
-                if mode == "guided" and "prompt" not in step:
+                if "prompt" not in step:
                     raise CompilerError(
                         f"{step_id}: collect/guided requires 'prompt' field"
                     )

@@ -131,6 +131,7 @@
         { "type": "speak", "mode": "guided", "prompt": "Let the caller know you'll take a message so someone can get back to them." },
         { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback number." },
+        { "type": "collect", "field": "message", "mode": "guided", "prompt": "Ask the caller what they'd like to leave as a message." },
         { "type": "action", "fn": "take_message" }
       ]
     },
@@ -139,6 +140,8 @@
       "steps": [
         { "type": "collect", "field": "name", "mode": "guided", "prompt": "Ask for the caller's full name — first and last." },
         { "type": "collect", "field": "phone", "mode": "guided", "prompt": "Ask for a callback number." },
+        { "type": "collect", "field": "issue_description", "mode": "guided", "prompt": "Ask the caller to briefly describe what they're calling about, so the team has context when they call back." },
+        { "type": "collect", "field": "preferred_callback_time", "mode": "guided", "prompt": "Ask if there's a preferred time for a callback during business hours." },
         { "type": "action", "fn": "take_message" }
       ]
     }

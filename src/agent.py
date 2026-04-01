@@ -93,6 +93,14 @@ class CajunHVACAgent(Agent):
         return result
 
 
+def _capture_sip_metadata(participant, userdata: dict) -> None:
+    """Store ANI and DNIS from a SIP participant's attributes into session userdata."""
+    if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+        return
+    userdata["sip_caller_number"] = participant.attributes.get("sip.phoneNumber", "")
+    userdata["sip_dnis"] = participant.attributes.get("sip.trunkPhoneNumber", "")
+
+
 server = AgentServer()
 
 
@@ -117,6 +125,8 @@ async def entrypoint(ctx: JobContext):
             "collected": {},
             "transcript": "",
             "outcome": None,
+            "sip_caller_number": "",
+            "sip_dnis": "",
         },
     )
 
@@ -147,6 +157,14 @@ async def entrypoint(ctx: JobContext):
 
     await ctx.connect()
 
+    # --- SIP metadata capture (ANI/DNIS) ---
+    for participant in ctx.room.remote_participants.values():
+        _capture_sip_metadata(participant, session.userdata)
+
+    @ctx.room.on("participant_connected")
+    def on_participant_connected(participant):
+        _capture_sip_metadata(participant, session.userdata)
+
     # Greeting trigger — model needs explicit nudge to start speaking
     session.generate_reply(
         instructions=f'Greet the caller by saying: "{agent.greeting}"'
@@ -158,10 +176,14 @@ async def entrypoint(ctx: JobContext):
     @ctx.room.on("participant_disconnected")
     def on_disconnect(participant):
         if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+            _capture_sip_metadata(participant, session.userdata)
+            hangup_time = time.time()
 
             async def delayed_summary():
                 await asyncio.sleep(10)  # Let transcript events settle
-                await post_summary_from_userdata(session.userdata, call_start_time)
+                await post_summary_from_userdata(
+                    session.userdata, call_start_time, hangup_time
+                )
 
             task = asyncio.create_task(delayed_summary())
             _background_tasks.add(task)
