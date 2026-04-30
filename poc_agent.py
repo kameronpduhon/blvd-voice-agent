@@ -9,7 +9,7 @@ Minimal agent to verify:
 
 Test:
   uv run python poc_agent.py console
-  uv run python poc_agent.py dev       # then call (337) 270-7004
+  uv run python poc_agent.py dev       # then call (555) 100-2000
 
 Env: GOOGLE_API_KEY must be set in .env.local
 """

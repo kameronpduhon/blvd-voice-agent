@@ -19,9 +19,9 @@ VALID_PLAYBOOK = {
         },
         "on_call": {"start": "17:00", "end": "22:00"},
     },
-    "service_areas": ["70502"],
+    "service_areas": ["12345"],
     "fees": {"service_call": {"amount": 89, "waived_with_work": True}},
-    "contacts": {"oncall_tech": {"name": "Mike", "phone": "(555) 555-0199"}},
+    "contacts": {"oncall_tech": {"name": "Sam", "phone": "(555) 555-0199"}},
     "voice": {
         "name": "Julie",
         "personality": "warm, professional, patient",
@@ -164,7 +164,7 @@ def test_compile_passes_through_intents():
 
 def test_compile_passes_through_service_areas():
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
-    assert result["service_areas"] == ["70502"]
+    assert result["service_areas"] == ["12345"]
 
 
 # --- system prompt content ---
@@ -238,14 +238,14 @@ def test_system_prompt_includes_company_info():
     assert "Test City, TX" in prompt
     assert "(555) 555-0100" in prompt
     assert "$89" in prompt
-    assert "Mike" in prompt
+    assert "Sam" in prompt
     assert "555-0199" in prompt
 
 
 def test_system_prompt_includes_service_areas():
     result = compile_playbook(VALID_PLAYBOOK, "test.json")
     prompt = result["system_prompt"]
-    assert "70502" in prompt
+    assert "12345" in prompt
 
 
 def test_system_prompt_includes_tool_rules():

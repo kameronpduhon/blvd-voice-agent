@@ -77,7 +77,7 @@ MINIMAL_PLAYBOOK = {
             ],
         },
     },
-    "service_areas": ["70502"],
+    "service_areas": ["12345"],
     "scripts": {
         "closing_booked": "You're all set for {appointment_time}.",
         "closing_message": "Message taken for {name}. Goodbye.",
@@ -360,7 +360,7 @@ PLAYBOOK_CONSECUTIVE_ACTIONS = {
             ],
         },
     },
-    "service_areas": ["70502"],
+    "service_areas": ["12345"],
     "scripts": {"closing_booked": "Done.", "closing_message": "Done."},
 }
 
@@ -599,13 +599,13 @@ def test_switch_intent_carries_shared_fields():
     session = make_mock_session()
     executor.set_intent("routine_service", session)
     executor.collected["name"] = "Eric Tails"
-    executor.collected["phone"] = "337-232-2341"
+    executor.collected["phone"] = "555-100-4000"
 
     result = executor.switch_intent("cancellation", session)
     assert "Of course" in result
     assert executor.current_intent == "cancellation"
     assert executor.collected["name"] == "Eric Tails"
-    assert executor.collected["phone"] == "337-232-2341"
+    assert executor.collected["phone"] == "555-100-4000"
 
 
 def test_switch_intent_skips_pre_collected_steps():
@@ -639,7 +639,7 @@ def test_switch_intent_off_hours_redirects():
     session = make_mock_session()
     executor.set_intent("emergency", session)
     executor.collected["name"] = "Eric Tails"
-    executor.collected["phone"] = "337-232-2341"
+    executor.collected["phone"] = "555-100-4000"
 
     executor.switch_intent("cancellation", session)
     assert executor.current_intent == "_after_hours"
@@ -663,8 +663,8 @@ def test_switch_intent_drops_non_shared_fields():
     session = make_mock_session()
     executor.set_intent("routine_service", session)
     executor.collected["name"] = "Eric Tails"
-    executor.collected["phone"] = "337-232-2341"
-    executor.collected["address"] = "123 Main St 70502"
+    executor.collected["phone"] = "555-100-4000"
+    executor.collected["address"] = "123 Main St 12345"
 
     executor.switch_intent("cancellation", session)
     assert "address" not in executor.collected
@@ -838,10 +838,10 @@ async def test_emergency_full_flow():
     result = await executor.update_field("name", "Eric Tails", session)
     assert result == "Ask for phone."
 
-    result = await executor.update_field("phone", "337-232-2341", session)
+    result = await executor.update_field("phone", "555-100-4000", session)
     assert result == "Ask for address."
 
-    result = await executor.update_field("address", "456 Cypress St 70502", session)
+    result = await executor.update_field("address", "456 Cypress St 12345", session)
     assert result == "Confirm dispatch."
 
     result = await executor.update_field("emergency_confirmed", "yes", session)
@@ -858,8 +858,8 @@ async def test_emergency_confirmed_no_takes_message():
     executor.set_intent("emergency", session)
 
     await executor.update_field("name", "Eric Tails", session)
-    await executor.update_field("phone", "337-232-2341", session)
-    await executor.update_field("address", "456 Cypress St 70502", session)
+    await executor.update_field("phone", "555-100-4000", session)
+    await executor.update_field("address", "456 Cypress St 12345", session)
 
     result = await executor.update_field("emergency_confirmed", "no", session)
     assert "[call_ended]" in result
@@ -878,7 +878,7 @@ async def test_cancellation_full_flow():
     result = await executor.update_field("name", "Eric Tails", session)
     assert result == "Ask for phone."
 
-    result = await executor.update_field("phone", "337-232-2341", session)
+    result = await executor.update_field("phone", "555-100-4000", session)
     assert result == "Ask reason."
 
     result = await executor.update_field(

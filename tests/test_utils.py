@@ -14,15 +14,15 @@ from src.utils import (
 
 
 def test_extract_zip_from_full_address():
-    assert extract_zip("456 Cypress St Springfield 70502") == "70502"
+    assert extract_zip("456 Cypress St Springfield 12345") == "12345"
 
 
 def test_extract_zip_from_address_with_comma():
-    assert extract_zip("456 Cypress St, our service area 70502") == "70502"
+    assert extract_zip("456 Cypress St, Springfield, IL 12345") == "12345"
 
 
 def test_extract_zip_five_digit():
-    assert extract_zip("123 Main St 70506") == "70506"
+    assert extract_zip("123 Main St 12347") == "12347"
 
 
 def test_extract_zip_none_found():
@@ -30,7 +30,7 @@ def test_extract_zip_none_found():
 
 
 def test_extract_zip_zip_plus_four():
-    assert extract_zip("456 Cypress St 70502-1234") == "70502"
+    assert extract_zip("456 Cypress St 12345-1234") == "12345"
 
 
 # --- resolve_template ---

@@ -1,6 +1,6 @@
-# Duhon Voice Agent — Architecture Reference
+# Prior Build — Architecture Reference
 
-This document describes the current working voice agent in `duhon-voice-agent`. Use this as context for building the new agent.
+This document describes a previous working voice agent build (a Laravel-API-backed Python LiveKit agent). Kept here as context for the architectural decisions that informed the current codebase.
 
 ---
 
@@ -44,7 +44,7 @@ Twilio (phone number)
 ## Directory Structure
 
 ```
-duhon-voice-agent/
+voice-agent/
 ├── agent/
 │   ├── agent.py              # Main voice agent
 │   ├── venv/                  # Python 3.12 virtual environment
@@ -100,7 +100,7 @@ Takes raw playbook JSON → outputs compiled JSON. The compiled output is what t
   "global": {
     "system_prompt": "You are a virtual receptionist for Acme HVAC...",
     "company_info": {},
-    "service_areas": ["70502", "70503"],
+    "service_areas": ["12345", "12346"],
     "hours": {
       "office_hours": { "start": "08:00", "end": "17:00", "days": ["mon","tue","wed","thu","fri"] },
       "on_call": { "start": "17:00", "end": "22:00" },
@@ -256,14 +256,14 @@ These were learned from testing. Violating any of them causes bugs:
 ### Summary payload structure:
 ```json
 {
-  "dnis": "3372707004",
+  "dnis": "5551002000",
   "caller_number": "3372322341",
   "intent": "routine_service",
   "outcome": "booked",
   "collected": {
     "name": "Eric Tails",
     "phone": "3372322341",
-    "address": "456 Cypress St Springfield 70502",
+    "address": "456 Cypress St Springfield 12345",
     "appointment_time": "Tomorrow at 9am"
   },
   "transcript": "...",
@@ -299,14 +299,14 @@ DEFAULT_DNIS=unknown
 **Test caller info:**
 - Name: Eric Tails
 - Phone: (337) 232-2341
-- In-area address: 456 Cypress St Springfield 70502
+- In-area address: 456 Cypress St Springfield 12345
 - Out-of-area zip: 70501
 
 ---
 
 ## Twilio / LiveKit Config
 
-- **Twilio number:** (337) 270-7004
+- **Twilio number:** (555) 100-2000
 - **LiveKit SIP trunk:** `ST_A6GagnMmUDqo`
 
 ---
@@ -325,7 +325,7 @@ DEFAULT_DNIS=unknown
 
 ## What This Agent Does NOT Handle (out of scope for the voice agent itself)
 
-- Playbook creation/editing (that's the wizard in `project_duhon`)
-- User auth / client dashboard (that's `project-d` / `project_duhon`)
+- Playbook creation/editing (handled by a separate Laravel back-office app)
+- User auth / client dashboard (handled by the same back-office app)
 - Call recording storage (handled by Twilio + S3 in the platform layer)
 - CRM integration (future — ServiceTitan API)

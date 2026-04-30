@@ -52,7 +52,7 @@ PLAYBOOK = {
             ],
         },
     },
-    "service_areas": ["70502", "70503"],
+    "service_areas": ["12345", "12346"],
     "scripts": {
         "closing_booked": "All set for {appointment_time}, {name}!",
         "closing_message": "Message taken for {name}. Goodbye.",
@@ -91,7 +91,7 @@ async def test_check_service_area_in_area():
     executor = make_executor(PLAYBOOK, "routine_service")
     # Set to -1 so advance() increments to 0 (the collect/name step)
     executor.current_step_index = -1
-    executor.collected["address"] = "456 Cypress St Springfield 70502"
+    executor.collected["address"] = "456 Cypress St Springfield 12345"
     session = make_mock_session()
     result = await check_service_area(executor, session)
     assert result == "Ask for name."
@@ -134,7 +134,7 @@ async def test_check_service_area_missing_zip_asks_for_zip():
                 ],
             },
         },
-        "service_areas": ["70502", "70503"],
+        "service_areas": ["12345", "12346"],
         "scripts": {
             "closing_booked": "All set!",
             "closing_message": "Message taken.",
@@ -192,14 +192,14 @@ async def test_take_message_resolves_template():
 async def test_dispatch_oncall_tech_resolves_template():
     executor = make_executor(PLAYBOOK, "routine_service")
     executor.collected = {
-        "phone": "337-232-2341",
+        "phone": "555-100-4000",
         "name": "Eric",
         "address": "456 Cypress St",
     }
     session = make_mock_session()
     result = await dispatch_oncall_tech(executor, session)
     assert "[call_ended]" in result
-    assert "Technician dispatched. We'll call 337-232-2341." in result
+    assert "Technician dispatched. We'll call 555-100-4000." in result
     assert executor.outcome == "dispatched"
     session.say.assert_not_called()
 
@@ -242,7 +242,7 @@ async def test_check_emergency_confirmed_yes_advances():
     executor.current_step_index = 1  # on the check_emergency_confirmed action step
     executor.collected = {
         "name": "Eric",
-        "phone": "337-232-2341",
+        "phone": "555-100-4000",
         "address": "456 Cypress St",
         "emergency_confirmed": "yes",
     }
@@ -296,7 +296,7 @@ PLAYBOOK_HVAC = {
             ],
         },
     },
-    "service_areas": ["70502"],
+    "service_areas": ["12345"],
     "scripts": {
         "closing_booked": "All set!",
         "closing_message": "Message taken.",

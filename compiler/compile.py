@@ -204,7 +204,7 @@ You have three tools: set_intent, update_field, switch_intent.
 - Use the EXACT field name from the tool result. DO NOT invent field names like "full_name" or "phone_number".
 - Follow the steps IN ORDER. The tool tells you which field to collect next. DO NOT skip ahead.
 - NEVER call update_field with placeholder values like [Name], TBD, N/A, or unknown.
-- ALWAYS convert spoken numbers to digits. Phone numbers: "three three seven two three two twenty three forty one" -> "337-232-2341". Addresses: "four five six Cypress Street seven zero five zero two" -> "456 Cypress Street, 70502".
+- ALWAYS convert spoken numbers to digits. Phone numbers: "five five five one zero zero forty zero zero" -> "555-100-4000". Addresses: "four five six Cypress Street seven zero five zero two" -> "456 Cypress Street, 12345".
 - When collecting an address, DO NOT call update_field until the caller has spoken the COMPLETE address including the zip code. If the caller gives a street address without a zip code, ask for the zip BEFORE calling update_field. NEVER submit a partial address without a zip code.
 - When collecting an appointment time, DO NOT call update_field until the caller has provided BOTH a day AND a specific time. If the caller says only a day (like "Friday"), ask "What time on Friday works for you?" BEFORE calling update_field.
 - When collecting a name, the caller MUST provide both first and last name. If they give only a first name, ask for their last name before calling update_field.

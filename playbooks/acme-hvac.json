@@ -1,7 +1,7 @@
 {
   "company": {
     "name": "Acme HVAC",
-    "phone": "(337) 270-7004",
+    "phone": "(555) 100-2000",
     "address": "our service area",
     "timezone": "America/Chicago"
   },
@@ -9,7 +9,7 @@
     "office": { "start": "08:00", "end": "17:00", "days": ["mon","tue","wed","thu","fri"] },
     "on_call": { "start": "17:00", "end": "22:00" }
   },
-  "service_areas": ["70502", "70503", "70506", "70507", "70508"],
+  "service_areas": ["12345", "12346", "12347", "12348", "12349"],
   "emergency_qualifiers": ["no heat", "no cooling", "no AC", "gas leak", "gas smell", "flooding", "water leak", "pipe burst", "electrical fire", "sparking", "no hot water"],
   "fees": {
     "service_call": {
@@ -18,7 +18,7 @@
     }
   },
   "contacts": {
-    "oncall_tech": { "name": "Mike", "phone": "(337) 555-0199" }
+    "oncall_tech": { "name": "Sam", "phone": "(555) 100-3000" }
   },
   "voice": {
     "name": "Julie",
